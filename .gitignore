@@ -1,0 +1,8 @@
+CREMA-D/VideoFlash/
+CREMA-D/mp4/
+CREMA-D/output/
+CREMA-D/AudioWAV/
+CREMA-D/AudioMP3/
+__pycache__/
+.ipynb_checkpoints/
+venv/
