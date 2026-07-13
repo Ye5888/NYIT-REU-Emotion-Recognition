@@ -6,3 +6,4 @@ CREMA-D/AudioMP3/
 __pycache__/
 .ipynb_checkpoints/
 venv/serviceAccountKey.json
+node_modules/
