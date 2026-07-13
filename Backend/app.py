@@ -23,10 +23,37 @@ def get_all_users():
 
     return jsonify(users), 200
 
+@app.route("/sessions", methods=["GET"])
+def get_all_sessions():
+    sessions_ref = db.collection('sessions')
+    docs = sessions_ref.stream()
 
-@app.route("/users/<user_id>", methods=["POST"])
-def get_user(id):
-    doc_ref = db.collection('users').document(id)
+    sessions = []
+
+    for session in docs:
+        data = session.to_dict()
+        data["id"] = session.id
+        sessions.append(session)
+
+    return jsonify(sessions), 200
+
+@app.route("/emotion_records", methods =["GET"])
+def get_all_emotion_records():
+    emotion_records = db.collection('emotion_records')
+    docs = emotion_records.stream()
+
+    records = []
+
+    for doc in docs:
+        data = doc.to_dict()
+        data["id"] = doc.id
+        records.append(data)
+
+    return jsonify(records), 200
+
+@app.route("/users/<user_id>", methods=["GET"])
+def get_user(user_id):
+    doc_ref = db.collection('users').document(user_id)
     doc = doc_ref.get()
 
     if not doc.exists:
@@ -37,7 +64,26 @@ def get_user(id):
     
     return jsonify(user_data), 200
 
+@app.route("/users", methods = ["POST"])
+def add_user():
+    data = request.get_json()
+    db.collection('users').add(data)
 
+    return jsonify({"message": "user added"}), 201
+
+@app.route("/sessions", methods = ["POST"])
+def add_session():
+    data = request.get_json()
+    db.collection('sessions').add(data)
+
+    return jsonify({"message": "session added"}), 201
+
+@app.route("/emotion_records", methods = ["POST"])
+def add_emotion_record():
+    data = request.get_json()
+    db.collection('emotion_records').add(data)
+
+    return jsonify({"message": "emotion record added"}), 201
 
 if __name__ == '__main__':
     app.run(debug=True)
