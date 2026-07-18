@@ -11,6 +11,9 @@ FrontendApp/node_modules/
 */serviceAccountKey.json
 venv/
 
+# macOS
+.DS_Store
+
 
 #REACT NATIVE APP GitIgnore
 
