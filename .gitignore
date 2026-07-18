@@ -5,5 +5,7 @@ CREMA-D/AudioWAV/
 CREMA-D/AudioMP3/
 __pycache__/
 .ipynb_checkpoints/
-venv/serviceAccountKey.json
-node_modules/
+Backend/serviceAccountKey.json
+Backend/.venv
+FrontendApp/node_modules/
+*/serviceAccountKey.json
