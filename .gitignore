@@ -13,6 +13,7 @@ venv/
 
 
 #REACT NATIVE APP GitIgnore
+FrontendApp/firebase.ts
 
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
