@@ -6,11 +6,12 @@ import opensmile
 import subprocess
 import os
 
-dependent_model = joblib.load("dependent_model.pkl")
-dependent_scaler = joblib.load("dependent_scaler.pkl")
+models_dir = os.path.join(os.path.dirname(__file__), "models")
 
-independent_model = joblib.load("independent_model.pkl")
-independent_scaler = joblib.load("independent_scaler.pkl")
+dependent_model = joblib.load(os.path.join(models_dir, "dependent_model.pkl"))
+dependent_scaler = joblib.load(os.path.join(models_dir, "dependent_scaler.pkl"))
+independent_model = joblib.load(os.path.join(models_dir, "independent_model.pkl"))
+independent_scaler = joblib.load(os.path.join(models_dir, "independent_scaler.pkl"))
 
 smile = opensmile.Smile(
     feature_set=opensmile.FeatureSet.emobase,
