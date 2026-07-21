@@ -10,6 +10,7 @@ import jwt
 from jwt_utils import generate_jwt
 
 import os
+from datetime import datetime, timedelta, timezone
 
 cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred)
@@ -269,6 +270,11 @@ def login():
             pass
 
     token = generate_jwt(user_doc.id)
+    db.collection("auth_tokens").add({
+        "JWT": token,
+        "userId": user_doc.id,
+        "expirationDate": datetime.now(timezone.utc) + timedelta(hours=720)
+    })
     db.collection("users").document(user_doc.id).update({"token": token})
 
     return jsonify({"token" : token}), 200
@@ -288,6 +294,12 @@ def signup():
     user_ref = db.collection('users').add(data)
 
     token = generate_jwt(user_ref[-1].id)
+
+    db.collection("auth_tokens").add({
+        "JWT" : token,
+        "userId" : user_ref[-1].id,
+        "expirationDate" : datetime.now(timezone.utc) + timedelta(hours=720)
+    })
     return jsonify({"token" : token}), 200
 
 
