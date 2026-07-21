@@ -3,9 +3,6 @@ from flask import request, jsonify, g
 import jwt
 import os
 
-import firebase_admin
-from firebase_admin import credentials, firestore
-
 from app import db
 
 def auth_required(fn):

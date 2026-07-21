@@ -4,6 +4,7 @@ from firebase_admin import credentials, firestore
 from predict import predict_emotion
 from chatbot import get_chatbot_response
 from auth import auth_required
+from encryption import encrypt, decrypt
 
 cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred)
@@ -27,6 +28,10 @@ def get_all_users():
     for doc in docs:
         data = doc.to_dict()
         data["id"] = doc.id
+        if "name" in data:
+            data["name"] = decrypt(data["name"])
+        if "email" in data:
+            data["email"] = decrypt(data["email"])
         users.append(data)
 
     return jsonify(users), 200
@@ -42,6 +47,8 @@ def get_all_sessions():
     for session in docs:
         data = session.to_dict()
         data["id"] = session.id
+        if "video_url" in data:
+            data["video_url"] = decrypt(data["video_url"])
         sessions.append(data)
 
     return jsonify(sessions), 200
@@ -72,6 +79,11 @@ def get_user(user_id):
     
     user_data = doc.to_dict()
     user_data["id"] = doc.id
+
+    if "name" in user_data:
+        user_data["name"] = decrypt(user_data["name"])
+    if "email" in user_data:
+        user_data["email"] = decrypt(user_data["email"])
     
     return jsonify(user_data), 200
 
@@ -83,6 +95,12 @@ def get_user(user_id):
 @auth_required
 def add_user():
     data = request.get_json()
+
+    if "name" in data:
+        data["name"] = encrypt(data["name"])
+    if "email" in data:
+        data["email"] = encrypt(data["email"])
+
     db.collection('users').add(data)
 
     return jsonify({"message": "user added"}), 201
@@ -91,6 +109,8 @@ def add_user():
 @auth_required
 def add_session():
     data = request.get_json()
+    if "video_url" in data:
+        data["video_url"] = encrypt(data["video_url"])
     db.collection('sessions').add(data)
 
     return jsonify({"message": "session added"}), 201
@@ -118,6 +138,12 @@ def modify_user(user_id):
     if not doc.exists:
         return jsonify({"message" : "document not exist"}), 404
     
+    
+    if "name" in data:
+        data["name"] = encrypt(data["name"])
+    if "email" in data:
+        data["email"] = encrypt(data["email"])
+
     doc_ref.update(data)
     return jsonify({"message" : "user successfully updated"}), 200
 
@@ -132,6 +158,9 @@ def modify_session(session_id):
     if not doc.exists:
         return jsonify({"message" : "document not found"}), 404
     
+    if "video_url" in data:
+        data["video_url"] = encrypt(data["video_url"])
+
     doc_ref.update(data)
     return jsonify({"message" : "session successfully updated"}), 200
 

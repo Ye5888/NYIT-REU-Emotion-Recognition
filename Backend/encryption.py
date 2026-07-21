@@ -1,6 +1,6 @@
 from cryptography.fernet import Fernet
 import os
-from dot_env import load_dotenv
+from dotenv import load_dotenv
 
 load_dotenv()
 
