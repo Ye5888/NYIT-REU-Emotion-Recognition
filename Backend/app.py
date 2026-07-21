@@ -6,6 +6,11 @@ from chatbot import get_chatbot_response
 from auth import auth_required
 from encryption import encrypt, decrypt
 
+import jwt
+from jwt_utils import generate_jwt
+
+import os
+
 cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred)
 
@@ -223,7 +228,8 @@ def delete_emotion_record(emotion_record_id):
 
 
 
-### Chatbot
+### CHATBOT
+
 @app.route("/chatbot", methods = ["POST"])
 @auth_required
 def chatbot():
@@ -233,6 +239,56 @@ def chatbot():
 
     response = get_chatbot_response(student_message, emotion)
     return jsonify({"response": response}), 200
+
+
+### LOGIN
+
+@app.route("/login", methods = ["POST"])
+def login():
+    data = request.get_json()
+    username = data.get("username")
+    password = data.get("password")
+
+    users_ref = db.collection("users").where("username", "==", username).get()
+    
+    if not users_ref:
+        return jsonify({"error": "user not found"}), 404
+    
+    user_doc = users_ref[0]
+    user_data = user_doc.to_dict()
+
+    if user_data.get("password") != password:
+        return jsonify({"error": "invalid password"}), 401
+    
+    existing_token = user_data.get("token")
+    if existing_token:
+        try:
+            jwt.decode(existing_token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
+            return jsonify({"token" : existing_token})
+        except Exception:
+            pass
+
+    token = generate_jwt(user_doc.id)
+    db.collection("users").document(user_doc.id).update({"token": token})
+
+    return jsonify({"token" : token}), 200
+
+
+### SIGNUP
+@app.route("/signup", methods = ["POST"])
+def signup():
+    data = request.get_json()
+    username = data.get("username")
+    password = data.get("password")
+
+    existing = db.collection("users").where("username", "==", username).get()
+    if existing:
+        return jsonify({"error": "username already taken"}), 409
+    
+    user_ref = db.collection('users').add(data)
+
+    token = generate_jwt(user_ref[-1].id)
+    return jsonify({"token" : token}), 200
 
 
 

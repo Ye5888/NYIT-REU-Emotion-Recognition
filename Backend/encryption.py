@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-key = os.get_env("ENCRYPTION_KEY")
+key = os.getenv("ENCRYPTION_KEY")
 fernet = Fernet(key)
 
 def encrypt(data : str) -> str:
