@@ -1,3 +1,13 @@
 flask
 firebase-admin
 opensmile
+PyJWT
+google-genai
+python-dotenv
+cryptography
+scipy
+numpy
+pandas
+scikit-learn
+joblib
+cryptography
