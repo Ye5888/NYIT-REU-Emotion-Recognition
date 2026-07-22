@@ -302,7 +302,36 @@ def signup():
     })
     return jsonify({"token" : token}), 200
 
+### LOGOUT
+@app.route("/logout", methods = ["GET"])
+def logout():
+    auth_header = request.headers.get("Authorization", "")
+    
+    if " " in auth_header:
+        token = auth_header.split(" ")[1]
+    else:
+        token = auth_header
 
+        if not token:
+            return jsonify({"error": "no token provided"}), 401
+        
+        try:
+            payload = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
+        except Exception:
+            return jsonify({"error": "invalid or expired token"}), 401
+        
+        user_id = payload.get("sub") or payload.get("user_id")
+
+        if not user_id:
+            return jsonify({"error": "token missing user id"}), 401
+        
+        db.collection("users").document(user_id).update({"token": firestore.DELETE_FIELD})
+
+        tokens_ref = db.collection("auth_tokens").where("JWT", "==", token).stream()
+        for doc in tokens_ref:
+            doc.reference.delete()
+
+        return jsonify({"message": "logged out successfully"}), 200
 
 if __name__ == '__main__':
     app.run(debug=True)
