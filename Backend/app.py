@@ -93,6 +93,64 @@ def get_user(user_id):
     
     return jsonify(user_data), 200
 
+@app.route("/protocols", methods=["GET"])
+@auth_required
+def get_all_protocols():
+    protocols_ref = db.collection('protocols')
+    docs = protocols_ref.stream()
+ 
+    protocols = []
+ 
+    for doc in docs:
+        data = doc.to_dict()
+        data["id"] = doc.id
+        protocols.append(data)
+ 
+    return jsonify(protocols), 200
+ 
+@app.route("/protocols/<version>", methods=["GET"])
+@auth_required
+def get_protocol(version):
+    doc_ref = db.collection('protocols').document(version)
+    doc = doc_ref.get()
+ 
+    if not doc.exists:
+        return jsonify({"error": "protocol not found"}), 404
+ 
+    protocol_data = doc.to_dict()
+    protocol_data["id"] = doc.id
+ 
+    return jsonify(protocol_data), 200
+
+ 
+@app.route("/probe_questions", methods=["GET"])
+@auth_required
+def get_all_probe_questions():
+    probe_questions_ref = db.collection('probeQuestions')
+    docs = probe_questions_ref.stream()
+ 
+    probe_questions = []
+ 
+    for doc in docs:
+        data = doc.to_dict()
+        data["id"] = doc.id
+        probe_questions.append(data)
+ 
+    return jsonify(probe_questions), 200
+ 
+@app.route("/probe_questions/<question_id>", methods=["GET"])
+@auth_required
+def get_probe_question(question_id):
+    doc_ref = db.collection('probeQuestions').document(question_id)
+    doc = doc_ref.get()
+ 
+    if not doc.exists:
+        return jsonify({"error": "probe question not found"}), 404
+ 
+    question_data = doc.to_dict()
+    question_data["id"] = doc.id
+ 
+    return jsonify(question_data), 200
 
 
 ### POST METHODS
@@ -129,7 +187,32 @@ def add_emotion_record():
 
     return jsonify({"message": "emotion record added"}), 201
 
+@app.route("/protocols", methods=["POST"])
+@auth_required
+def add_protocol():
+    data = request.get_json()
+ 
+    version = data.get("version")
+    if not version:
+        return jsonify({"error": "version is required"}), 400
+ 
+    doc_ref = db.collection('protocols').document(version)
+    if doc_ref.get().exists:
+        return jsonify({"error": "protocol version already exists"}), 409
+ 
+    doc_ref.set(data)
+ 
+    return jsonify({"message": "protocol added"}), 201
 
+ 
+@app.route("/probe_questions", methods=["POST"])
+@auth_required
+def add_probe_question():
+    data = request.get_json()
+ 
+    db.collection('probeQuestions').add(data)
+ 
+    return jsonify({"message": "probe question added"}), 201
 
 ### PUT METHODS
 
@@ -306,7 +389,6 @@ def signup():
 @app.route("/logout", methods = ["GET"])
 def logout():
     auth_header = request.headers.get("Authorization", "")
-    
     if " " in auth_header:
         token = auth_header.split(" ")[1]
     else:
