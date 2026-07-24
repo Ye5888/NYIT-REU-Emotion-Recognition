@@ -20,6 +20,12 @@ smile = opensmile.Smile(
 
 
 def predict_emotion(video_path, audio_path):
+    feature_vector_scaled = construct_feature_vector(video_path, audio_path)
+    prediction = dependent_model.predict(feature_vector_scaled)[0]
+
+    return prediction
+
+def construct_feature_vector(video_path, audio_path):
     csv_dir = os.path.join(os.path.dirname(__file__), "uploads/CSVs/")
     video_name = os.path.basename(video_path)
 
@@ -98,9 +104,8 @@ def predict_emotion(video_path, audio_path):
     feature_vector = np.array(total_list).reshape(1,-1)
     feature_vector = np.nan_to_num(feature_vector)
     feature_vector_scaled = dependent_scaler.transform(feature_vector)
-    prediction = dependent_model.predict(feature_vector_scaled)[0]
+    return feature_vector_scaled
 
-    return prediction
 
 
 def run_openface(video_path, csv_output_dir):

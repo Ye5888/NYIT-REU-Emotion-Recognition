@@ -1,6 +1,4 @@
 from flask import Flask, jsonify, request
-import firebase_admin
-from firebase_admin import credentials, firestore
 from predict import predict_emotion
 from chatbot import get_chatbot_response
 from auth import auth_required
@@ -12,10 +10,7 @@ from jwt_utils import generate_jwt
 import os
 from datetime import datetime, timedelta, timezone
 
-cred = credentials.Certificate("serviceAccountKey.json")
-firebase_admin.initialize_app(cred)
-
-db = firestore.client()
+from firebase_config import db
 
 app = Flask(__name__)
 
