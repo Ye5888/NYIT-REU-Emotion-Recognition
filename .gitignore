@@ -16,8 +16,12 @@ FrontendApp/node_modules/
 */serviceAccountKey.json
 venv/
 
+# macOS
+.DS_Store
+
 
 #REACT NATIVE APP GitIgnore
+FrontendApp/firebase.ts
 
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
