@@ -1,5 +1,5 @@
 from flask import Flask, jsonify, request
-import firebase_admin
+from flask_cors import CORS
 from firebase_admin import credentials, firestore
 from predict import predict_emotion
 from chatbot import get_chatbot_response
@@ -12,12 +12,13 @@ from jwt_utils import generate_jwt
 import os
 from datetime import datetime, timedelta, timezone
 
-cred = credentials.Certificate("serviceAccountKey.json")
-firebase_admin.initialize_app(cred)
+from firebase_config import db
 
-db = firestore.client()
+cred = credentials.Certificate("serviceAccountKey.json")
 
 app = Flask(__name__)
+
+CORS(app)
 
 ### Function that creates/generates JWT
 # 
@@ -37,11 +38,11 @@ def get_all_users():
 
     for doc in docs:
         data = doc.to_dict()
-        data["id"] = doc.id
-        if "name" in data:
-            data["name"] = decrypt(data["name"])
-        if "email" in data:
-            data["email"] = decrypt(data["email"])
+        # data["id"] = doc.id
+        # if "name" in data:
+        #     data["name"] = decrypt(data["name"])
+        # if "email" in data:
+        #     data["email"] = decrypt(data["email"])
         users.append(data)
 
     return jsonify(users), 200
@@ -269,7 +270,7 @@ def login():
     if existing_token:
         try:
             jwt.decode(existing_token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
-            return jsonify({"token" : existing_token})
+            return jsonify(user_data)
         except Exception:
             pass
 
