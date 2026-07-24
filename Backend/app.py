@@ -4,6 +4,13 @@ from firebase_admin import credentials, firestore
 from predict import predict_emotion
 from chatbot import get_chatbot_response
 from auth import auth_required
+from encryption import encrypt, decrypt
+
+import jwt
+from jwt_utils import generate_jwt
+
+import os
+from datetime import datetime, timedelta, timezone
 
 cred = credentials.Certificate("serviceAccountKey.json")
 firebase_admin.initialize_app(cred)
@@ -31,6 +38,10 @@ def get_all_users():
     for doc in docs:
         data = doc.to_dict()
         data["id"] = doc.id
+        if "name" in data:
+            data["name"] = decrypt(data["name"])
+        if "email" in data:
+            data["email"] = decrypt(data["email"])
         users.append(data)
 
     return jsonify(users), 200
@@ -46,6 +57,8 @@ def get_all_sessions():
     for session in docs:
         data = session.to_dict()
         data["id"] = session.id
+        if "video_url" in data:
+            data["video_url"] = decrypt(data["video_url"])
         sessions.append(data)
 
     return jsonify(sessions), 200
@@ -76,6 +89,11 @@ def get_user(user_id):
     
     user_data = doc.to_dict()
     user_data["id"] = doc.id
+
+    if "name" in user_data:
+        user_data["name"] = decrypt(user_data["name"])
+    if "email" in user_data:
+        user_data["email"] = decrypt(user_data["email"])
     
     return jsonify(user_data), 200
 
@@ -87,6 +105,12 @@ def get_user(user_id):
 #@auth_required
 def add_user():
     data = request.get_json()
+
+    if "name" in data:
+        data["name"] = encrypt(data["name"])
+    if "email" in data:
+        data["email"] = encrypt(data["email"])
+
     db.collection('users').add(data)
 
     return jsonify({"message": "user added"}), 201
@@ -95,6 +119,8 @@ def add_user():
 #@auth_required
 def add_session():
     data = request.get_json()
+    if "video_url" in data:
+        data["video_url"] = encrypt(data["video_url"])
     db.collection('sessions').add(data)
 
     return jsonify({"message": "session added"}), 201
@@ -122,6 +148,12 @@ def modify_user(user_id):
     if not doc.exists:
         return jsonify({"message" : "document not exist"}), 404
     
+    
+    if "name" in data:
+        data["name"] = encrypt(data["name"])
+    if "email" in data:
+        data["email"] = encrypt(data["email"])
+
     doc_ref.update(data)
     return jsonify({"message" : "user successfully updated"}), 200
 
@@ -136,6 +168,9 @@ def modify_session(session_id):
     if not doc.exists:
         return jsonify({"message" : "document not found"}), 404
     
+    if "video_url" in data:
+        data["video_url"] = encrypt(data["video_url"])
+
     doc_ref.update(data)
     return jsonify({"message" : "session successfully updated"}), 200
 
@@ -198,7 +233,8 @@ def delete_emotion_record(emotion_record_id):
 
 
 
-### Chatbot
+### CHATBOT
+
 @app.route("/chatbot", methods = ["POST"])
 #@auth_required
 def chatbot():
@@ -208,6 +244,67 @@ def chatbot():
 
     response = get_chatbot_response(student_message, emotion)
     return jsonify({"response": response}), 200
+
+
+### LOGIN
+
+@app.route("/login", methods = ["POST"])
+def login():
+    data = request.get_json()
+    username = data.get("username")
+    password = data.get("password")
+
+    users_ref = db.collection("users").where("username", "==", username).get()
+    
+    if not users_ref:
+        return jsonify({"error": "user not found"}), 404
+    
+    user_doc = users_ref[0]
+    user_data = user_doc.to_dict()
+
+    if user_data.get("password") != password:
+        return jsonify({"error": "invalid password"}), 401
+    
+    existing_token = user_data.get("token")
+    if existing_token:
+        try:
+            jwt.decode(existing_token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
+            return jsonify({"token" : existing_token})
+        except Exception:
+            pass
+
+    token = generate_jwt(user_doc.id)
+    db.collection("auth_tokens").add({
+        "JWT": token,
+        "userId": user_doc.id,
+        "expirationDate": datetime.now(timezone.utc) + timedelta(hours=720)
+    })
+    db.collection("users").document(user_doc.id).update({"token": token})
+
+    return jsonify({"token" : token}), 200
+
+
+### SIGNUP
+@app.route("/signup", methods = ["POST"])
+def signup():
+    data = request.get_json()
+    username = data.get("username")
+    password = data.get("password")
+
+    existing = db.collection("users").where("username", "==", username).get()
+    if existing:
+        return jsonify({"error": "username already taken"}), 409
+    
+    user_ref = db.collection('users').add(data)
+
+    token = generate_jwt(user_ref[-1].id)
+
+    db.collection("auth_tokens").add({
+        "JWT" : token,
+        "userId" : user_ref[-1].id,
+        "expirationDate" : datetime.now(timezone.utc) + timedelta(hours=720)
+    })
+    return jsonify({"token" : token}), 200
 
 
 

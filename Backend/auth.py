@@ -2,9 +2,7 @@ from functools import wraps
 from flask import request, jsonify, g
 import jwt
 import os
-
-import firebase_admin
-from firebase_admin import credentials, firestore
+from datetime import datetime, timedelta, timezone
 
 from app import db
 
@@ -26,6 +24,17 @@ def auth_required(fn):
 
             if not "sub" in payload:
                 return jsonify({"error" : "invalid payload"}), 401
+            
+            token_docs = db.collection("auth_tokens").where("JWT", "==", token).get()
+            
+            if not token_docs:
+                return jsonify({"error" : "token not found"}), 401
+            
+            token_data = token_docs[0].to_dict()
+            if (token_data["expirationDate"] < datetime.now(timezone.utc)):
+                return jsonify({"error" : "expired token"}), 401
+            
+
         except Exception:
             return jsonify({"error": "invalid or expired token"}), 401
         

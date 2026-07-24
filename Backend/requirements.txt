@@ -1,9 +1,11 @@
 flask
+flask_cors
 firebase-admin
 opensmile
 PyJWT
 google-genai
 python-dotenv
+cryptography
 scipy
 numpy
 pandas
