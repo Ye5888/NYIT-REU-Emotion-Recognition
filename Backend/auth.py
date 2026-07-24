@@ -4,7 +4,7 @@ import jwt
 import os
 from datetime import datetime, timedelta, timezone
 
-from app import db
+from firebase_config import db
 
 def auth_required(fn):
     @wraps(fn)
