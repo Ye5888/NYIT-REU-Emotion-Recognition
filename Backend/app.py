@@ -1,6 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from firebase_admin import credentials, firestore
+from firebase_admin import firestore
 from predict import predict_emotion
 from chatbot import get_chatbot_response
 from auth import auth_required
@@ -13,8 +13,6 @@ import os
 from datetime import datetime, timedelta, timezone
 
 from firebase_config import db
-
-cred = credentials.Certificate("serviceAccountKey.json")
 
 app = Flask(__name__)
 CORS(app)
@@ -341,7 +339,13 @@ def get_probe_question(question_id):
 @auth_required
 def add_probe_question():
     data = request.get_json()
-    db.collection('probeQuestions').add(data)
+    question_id = data.pop("id", None)
+    if not question_id:
+        return jsonify({"error": "id is required"}), 400
+    doc_ref = db.collection('probeQuestions').document(question_id)
+    if doc_ref.get().exists:
+        return jsonify({"error": "probe question already exists"}), 409
+    doc_ref.set(data)
     return jsonify({"message": "probe question added"}), 201
 
 
@@ -374,8 +378,67 @@ def add_assessment_item():
     valid_stages = ["pretest", "posttest", "transfer"]
     if data.get("stage") not in valid_stages:
         return jsonify({"error": "stage must be pretest, posttest, or transfer"}), 400
-    db.collection("assessmentItems").add(data)
+    item_id = data.pop("id", None)
+    if not item_id:
+        return jsonify({"error": "id is required"}), 400
+    doc_ref = db.collection("assessmentItems").document(item_id)
+    if doc_ref.get().exists:
+        return jsonify({"error": "assessment item already exists"}), 409
+    doc_ref.set(data)
     return jsonify({"message": "assessment item added"}), 201
+
+
+### CASE STUDIES
+
+# A case study is the flawed research study a participant reads, and it is the
+# parent of the 4-5 task trials that critique it (D'Mello et al. 2014, Table 1).
+# The study text lives here so it is stored once, not repeated on every trial.
+
+@app.route("/caseStudies", methods=["GET"])
+def get_all_case_studies():
+    docs = db.collection("caseStudies").stream()
+    case_studies = []
+    for doc in docs:
+        data = doc.to_dict()
+        data["id"] = doc.id
+        case_studies.append(data)
+    return jsonify(case_studies), 200
+
+@app.route("/caseStudies/<case_study_id>", methods=["GET"])
+def get_case_study(case_study_id):
+    doc_ref = db.collection("caseStudies").document(case_study_id)
+    doc = doc_ref.get()
+    if not doc.exists:
+        return jsonify({"error": "case study not found"}), 404
+    data = doc.to_dict()
+    data["id"] = doc.id
+    return jsonify(data), 200
+
+@app.route("/caseStudies/<case_study_id>/trials", methods=["GET"])
+def get_case_study_trials(case_study_id):
+    docs = db.collection("taskTrials").where("caseStudyId", "==", case_study_id).stream()
+    trials = []
+    for doc in docs:
+        data = doc.to_dict()
+        data["id"] = doc.id
+        trials.append(data)
+    # Sorted here rather than with order_by so the query stays a single-field
+    # filter. Adding order_by("index") would require a composite Firestore index.
+    trials.sort(key=lambda t: t.get("index", 0))
+    return jsonify(trials), 200
+
+@app.route("/caseStudies", methods=["POST"])
+@auth_required
+def add_case_study():
+    data = request.get_json()
+    case_study_id = data.pop("id", None)
+    if not case_study_id:
+        return jsonify({"error": "id is required"}), 400
+    doc_ref = db.collection("caseStudies").document(case_study_id)
+    if doc_ref.get().exists:
+        return jsonify({"error": "case study already exists"}), 409
+    doc_ref.set(data)
+    return jsonify({"message": "case study added"}), 201
 
 
 ### TASK TRIALS
@@ -404,7 +467,18 @@ def get_task_trial(trial_id):
 @auth_required
 def add_task_trial():
     data = request.get_json()
-    db.collection("taskTrials").add(data)
+    trial_id = data.pop("id", None)
+    if not trial_id:
+        return jsonify({"error": "id is required"}), 400
+    case_study_id = data.get("caseStudyId")
+    if not case_study_id:
+        return jsonify({"error": "caseStudyId is required"}), 400
+    if not db.collection("caseStudies").document(case_study_id).get().exists:
+        return jsonify({"error": "caseStudyId does not refer to an existing case study"}), 400
+    doc_ref = db.collection("taskTrials").document(trial_id)
+    if doc_ref.get().exists:
+        return jsonify({"error": "task trial already exists"}), 409
+    doc_ref.set(data)
     return jsonify({"message": "task trial added"}), 201
 
 

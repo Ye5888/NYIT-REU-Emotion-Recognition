@@ -1,0 +1,22 @@
+{
+  "v1": {
+    "version": "v1",
+    "policy": {
+      "probeTiming": "randomizePerTrial",
+      "probeOrder": "shuffleAll",
+      "defineLabels": false
+    },
+    "probeIds": [
+      "probe_concrete_effort",
+      "probe_metaphor_grip",
+      "probe_positive_engaged",
+      "probe_negative_confused"
+    ],
+    "assessmentItemIds": {
+      "pretest": ["assess_pre_confound_1", "assess_pre_confound_2"],
+      "posttest": ["assess_post_confound_1"],
+      "transfer": ["assess_transfer_1"]
+    },
+    "caseStudyIds": ["case_textbook"]
+  }
+}

@@ -1,0 +1,188 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nyit-reu/schema/definitions.schema.json",
+  "title": "Definition-side document shapes",
+
+  "$defs": {
+    "docId": {
+      "type": "string",
+      "pattern": "^[a-z][a-zA-Z0-9_]*$"
+    },
+
+    "caseStudy": {
+      "type": "object",
+      "required": ["topic", "index", "studyText", "flaw", "trialCount"],
+      "additionalProperties": false,
+      "properties": {
+        "topic": { "type": "string", "minLength": 1 },
+        "index": { "type": "integer", "minimum": 0 },
+        "source": { "type": "string" },
+        "studyText": { "type": "string", "minLength": 1 },
+        "flaw": { "type": "string", "minLength": 1 },
+        "trialCount": { "type": "integer", "minimum": 1 }
+      }
+    },
+
+    "turn": {
+      "type": "object",
+      "required": ["speaker", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "speaker": { "enum": ["tutor", "peer"] },
+        "text": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "assertion": {
+      "type": "object",
+      "required": ["speaker", "variants"],
+      "additionalProperties": false,
+      "properties": {
+        "speaker": { "enum": ["tutor", "peer"] },
+        "variants": {
+          "type": "object",
+          "required": ["T", "F"],
+          "additionalProperties": false,
+          "properties": {
+            "T": { "type": "string", "minLength": 1 },
+            "F": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+
+    "taskTrial": {
+      "type": "object",
+      "required": [
+        "caseStudyId", "index", "facet", "advanceTurn",
+        "assertions", "forcedChoicePrompt", "choices", "correctKey"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "caseStudyId": { "$ref": "#/$defs/docId" },
+        "index": { "type": "integer", "minimum": 0 },
+        "facet": { "type": "string", "minLength": 1 },
+        "advanceTurn": { "$ref": "#/$defs/turn" },
+        "assertions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/assertion" },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "forcedChoicePrompt": { "type": "string", "minLength": 1 },
+        "choices": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true
+        },
+        "correctKey": { "type": "string", "minLength": 1 }
+      }
+    },
+
+    "probeQuestion": {
+      "type": "object",
+      "required": ["modality", "responseType", "prompt"],
+      "additionalProperties": false,
+      "properties": {
+        "modality": { "enum": ["metaphor", "concrete", "positive", "negative"] },
+        "responseType": { "enum": ["scale", "choice", "text"] },
+        "prompt": { "type": "string", "minLength": 1 },
+        "scale": {
+          "type": "object",
+          "required": ["min", "max"],
+          "additionalProperties": false,
+          "properties": {
+            "min": { "type": "integer" },
+            "max": { "type": "integer" }
+          }
+        },
+        "choices": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 2,
+          "uniqueItems": true
+        },
+        "definitionVariant": { "type": ["string", "null"] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "responseType": { "const": "scale" } }, "required": ["responseType"] },
+          "then": { "required": ["scale"] }
+        },
+        {
+          "if": { "properties": { "responseType": { "const": "choice" } }, "required": ["responseType"] },
+          "then": { "required": ["choices"] }
+        }
+      ]
+    },
+
+    "assessmentItem": {
+      "type": "object",
+      "required": ["stage", "construct", "responseType", "prompt", "choices", "correctKey"],
+      "additionalProperties": false,
+      "properties": {
+        "stage": { "enum": ["pretest", "posttest", "transfer"] },
+        "construct": { "type": "string", "minLength": 1 },
+        "transferType": { "enum": ["near", "far"] },
+        "responseType": { "enum": ["choice"] },
+        "prompt": { "type": "string", "minLength": 1 },
+        "choices": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "minItems": 2,
+          "uniqueItems": true
+        },
+        "correctKey": { "type": "string", "minLength": 1 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "stage": { "const": "transfer" } }, "required": ["stage"] },
+          "then": { "required": ["transferType"] }
+        }
+      ]
+    },
+
+    "protocol": {
+      "type": "object",
+      "required": ["version", "policy", "probeIds", "assessmentItemIds", "caseStudyIds"],
+      "additionalProperties": false,
+      "properties": {
+        "version": { "type": "string", "pattern": "^v[0-9]+$" },
+        "policy": {
+          "type": "object",
+          "required": ["probeTiming", "probeOrder", "defineLabels"],
+          "additionalProperties": false,
+          "properties": {
+            "probeTiming": { "enum": ["randomizePerTrial", "alwaysDuring", "alwaysAfter"] },
+            "probeOrder": { "enum": ["shuffleAll", "fixed"] },
+            "defineLabels": { "type": "boolean" }
+          }
+        },
+        "probeIds": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/docId" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "assessmentItemIds": {
+          "type": "object",
+          "required": ["pretest", "posttest", "transfer"],
+          "additionalProperties": false,
+          "properties": {
+            "pretest": { "type": "array", "items": { "$ref": "#/$defs/docId" }, "uniqueItems": true },
+            "posttest": { "type": "array", "items": { "$ref": "#/$defs/docId" }, "uniqueItems": true },
+            "transfer": { "type": "array", "items": { "$ref": "#/$defs/docId" }, "uniqueItems": true }
+          }
+        },
+        "caseStudyIds": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/docId" },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}

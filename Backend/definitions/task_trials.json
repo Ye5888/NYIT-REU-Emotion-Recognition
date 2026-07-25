@@ -1,0 +1,117 @@
+{
+  "trial_textbook_0": {
+    "caseStudyId": "case_textbook",
+    "index": 0,
+    "facet": "overall_verdict",
+    "advanceTurn": {
+      "speaker": "tutor",
+      "text": "So we talked while you were reading, and we each formed an opinion about this study."
+    },
+    "assertions": [
+      {
+        "speaker": "peer",
+        "variants": {
+          "T": "I think there was something problematic about this study.",
+          "F": "I don't think there was anything problematic about this study."
+        }
+      },
+      {
+        "speaker": "tutor",
+        "variants": {
+          "T": "I think there was a problem with it.",
+          "F": "I didn't see anything problematic about it."
+        }
+      }
+    ],
+    "forcedChoicePrompt": "Would you not buy textbooks next semester based on this study?",
+    "choices": ["buy", "not buy"],
+    "correctKey": "buy"
+  },
+
+  "trial_textbook_1": {
+    "caseStudyId": "case_textbook",
+    "index": 1,
+    "facet": "assignment_to_conditions",
+    "advanceTurn": {
+      "speaker": "tutor",
+      "text": "We are going to go over our thinking for this study before we come to any final decisions."
+    },
+    "assertions": [
+      {
+        "speaker": "peer",
+        "variants": {
+          "T": "I think how the participants were put into each condition is a real problem.",
+          "F": "Well, I think how the participants were put into each condition was good, so that's not a problem."
+        }
+      },
+      {
+        "speaker": "tutor",
+        "variants": {
+          "T": "It was problematic.",
+          "F": "That part seems fine to me."
+        }
+      }
+    ],
+    "forcedChoicePrompt": "Do you think there's a problem with how the participants were put into each group?",
+    "choices": ["problem", "no problem"],
+    "correctKey": "problem"
+  },
+
+  "trial_textbook_2": {
+    "caseStudyId": "case_textbook",
+    "index": 2,
+    "facet": "group_equivalence",
+    "advanceTurn": {
+      "speaker": "tutor",
+      "text": "Chris, can the researchers know if the two groups are equivalent?"
+    },
+    "assertions": [
+      {
+        "speaker": "peer",
+        "variants": {
+          "T": "No, they can't know that.",
+          "F": "Yes, they can."
+        }
+      },
+      {
+        "speaker": "tutor",
+        "variants": {
+          "T": "I disagree.",
+          "F": "I agree with Chris on that."
+        }
+      }
+    ],
+    "forcedChoicePrompt": "Do the researchers know that the two groups are equivalent?",
+    "choices": ["know", "don't know"],
+    "correctKey": "don't know"
+  },
+
+  "trial_textbook_3": {
+    "caseStudyId": "case_textbook",
+    "index": 3,
+    "facet": "random_assignment",
+    "advanceTurn": {
+      "speaker": "tutor",
+      "text": "Let's settle how they should have run this."
+    },
+    "assertions": [
+      {
+        "speaker": "tutor",
+        "variants": {
+          "T": "I think it would've been better if they had randomly assigned people to use or not use the textbook.",
+          "F": "I think signing up for different sections is random enough."
+        }
+      },
+      {
+        "speaker": "peer",
+        "variants": {
+          "T": "They really should have randomly assigned people to use or not use the textbook.",
+          "F": "No, I think signing up for different sections is random enough."
+        }
+      }
+    ],
+    "forcedChoicePrompt": "Should the researchers have used random assignment here?",
+    "choices": ["random assignment", "no random assignment"],
+    "correctKey": "random assignment"
+  }
+}

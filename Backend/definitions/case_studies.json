@@ -1,0 +1,10 @@
+{
+  "case_textbook": {
+    "topic": "random_assignment",
+    "index": 0,
+    "source": "D'Mello et al. 2014, Table 1",
+    "studyText": "There was a study done at a top University where students got the same grade whether they used the textbook or not. In the fall, science students were told that textbooks were optional. For the same class in the spring, students were told that reading the textbook was required. The researchers found no differences on the final exams. So there is no need to buy textbooks.",
+    "flaw": "Participants were not randomly assigned to conditions; term is confounded with condition.",
+    "trialCount": 4
+  }
+}

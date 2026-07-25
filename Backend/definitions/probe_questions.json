@@ -1,0 +1,26 @@
+{
+  "probe_concrete_effort": {
+    "modality": "concrete",
+    "responseType": "scale",
+    "scale": { "min": 1, "max": 5 },
+    "prompt": "How hard are you trying to understand this right now?"
+  },
+  "probe_metaphor_grip": {
+    "modality": "metaphor",
+    "responseType": "choice",
+    "prompt": "Characterize your grip on this topic. Is it stable, stabilizing, or slipping?",
+    "choices": ["stable", "stabilizing", "slipping"]
+  },
+  "probe_positive_engaged": {
+    "modality": "positive",
+    "responseType": "scale",
+    "scale": { "min": 1, "max": 5 },
+    "prompt": "Are you engaged?"
+  },
+  "probe_negative_confused": {
+    "modality": "negative",
+    "responseType": "scale",
+    "scale": { "min": 1, "max": 5 },
+    "prompt": "Do you feel confused?"
+  }
+}
