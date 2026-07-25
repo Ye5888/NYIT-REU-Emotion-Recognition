@@ -2,14 +2,16 @@
  * Session state as React context — the only cross-screen coupling in the app.
  * Screens read/write the session; they never know about each other.
  *
- * The stored state is deliberately thin (in-memory for now). Persistence and the
- * return-to-submit flow hang off `sessionId` / `accountId` later.
+ * `assignment` starts empty and is filled by resolveAssignment once the
+ * protocol has loaded (see use-experiment-data). Everything before the task
+ * step runs fine without it.
  */
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 
 import { emptyConsent } from './consent';
-import { assignProbes } from './plan';
 import type { SessionState } from './types';
+
+const PROTOCOL_VERSION = 'v1';
 
 function makeSeed(): number {
   return Math.floor(Math.random() * 2 ** 31);
@@ -19,10 +21,13 @@ export function createSession(): SessionState {
   const seed = makeSeed();
   return {
     sessionId: `s_${seed.toString(36)}_${Date.now().toString(36)}`,
+    protocolVersion: PROTOCOL_VERSION,
     seed,
     consent: emptyConsent(),
-    probePlan: assignProbes(seed), // resolved from the seed by the (stub) policy
-    trials: [],
+    assignment: { probeTiming: 'immediate', probeOrder: [], caseStudies: [] },
+    forcedChoices: [],
+    probes: [],
+    assessments: [],
   };
 }
 

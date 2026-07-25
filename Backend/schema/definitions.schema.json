@@ -155,7 +155,9 @@
           "required": ["probeTiming", "probeOrder", "defineLabels"],
           "additionalProperties": false,
           "properties": {
-            "probeTiming": { "enum": ["randomizePerTrial", "alwaysDuring", "alwaysAfter"] },
+            "probeTiming": {
+              "enum": ["randomizePerParticipant", "alwaysImmediate", "alwaysRetrospective"]
+            },
             "probeOrder": { "enum": ["shuffleAll", "fixed"] },
             "defineLabels": { "type": "boolean" }
           }

@@ -2,7 +2,7 @@
   "v1": {
     "version": "v1",
     "policy": {
-      "probeTiming": "randomizePerTrial",
+      "probeTiming": "randomizePerParticipant",
       "probeOrder": "shuffleAll",
       "defineLabels": false
     },

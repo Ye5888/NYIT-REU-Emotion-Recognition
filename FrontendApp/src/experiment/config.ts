@@ -18,6 +18,17 @@ export const MODALITY_LABELS: Record<Modality, string> = {
   negative: 'Negative emotion',
 };
 
+// --- Trialogue agents (D'Mello et al. 2014) -----------------------------------
+export const SPEAKER_LABELS = {
+  tutor: 'Dr. Williams',
+  peer: 'Chris',
+} as const;
+
+export const SPEAKER_ROLES = {
+  tutor: 'Tutor',
+  peer: 'Student',
+} as const;
+
 // --- Granular data-sharing categories (Cao's privacy-by-design — TBD; may become
 //     nested tiers: raw / facial-param / model-param) ---------------------------
 export const DATA_CATEGORIES = ['webcam', 'audio', 'behavioralTraces', 'modelParams'] as const;
