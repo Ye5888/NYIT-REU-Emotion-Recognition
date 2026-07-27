@@ -5,14 +5,15 @@ from predict import predict_emotion
 from chatbot import get_chatbot_response
 from auth import auth_required
 from encryption import encrypt, decrypt
+from firebase_config import db
 
 import jwt
 from jwt_utils import generate_jwt
-
 import os
+import subprocess
 from datetime import datetime, timedelta, timezone
+from werkzeug.utils import secure_filename
 
-from firebase_config import db
 
 cred = credentials.Certificate("serviceAccountKey.json")
 
@@ -454,8 +455,8 @@ def login():
 def signup():
     data = request.get_json()
     username = data.get("username")
-    password = data.get("password")
     existing = db.collection("users").where("username", "==", username).get()
+
     if existing:
         return jsonify({"error": "username already taken"}), 409
     user_ref = db.collection('users').add(data)
@@ -488,6 +489,41 @@ def logout():
         for doc in tokens_ref:
             doc.reference.delete()
         return jsonify({"message": "logged out successfully"}), 200
+    
+
+@app.route("predict", methods = ["POST"])
+@auth_required
+def predict():
+    if "video" not in request.files:
+        return jsonify({"error": "no video file provided"}), 400
+    
+    video = request.files["video"]
+
+    video_filename = secure_filename(video.filename)
+    video_path = os.path.join("uploads/videos", video_filename)
+    video.save(video_path)
+
+    audio_path = video_path.replace(".mp4", ".wav")
+    subprocess.run(["ffmpeg", "-i", video_path, "-y", audio_path])
+    
+    emotion = predict_emotion(video_path, audio_path)
+
+    session_id = request.form.get("session_id")
+    if session_id:
+        db.collection("sessions").document(session_id).collection("labels").add({
+        "derivedLabel": emotion,
+        "videoSegmentUrl": video_path,
+        "confidence": 0.0,  # add actual confidence if available
+        "labeledAt": datetime.now(timezone.utc)
+        })
+
+    student_message = request.form.get("student_message", "")
+    response = get_chatbot_response(student_message, emotion)
+
+    return jsonify({"emotion": emotion,
+        "chatbot_response": response
+    }), 200
+
 
 
 if __name__ == '__main__':
