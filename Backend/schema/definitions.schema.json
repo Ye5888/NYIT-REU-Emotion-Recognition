@@ -19,7 +19,8 @@
         "source": { "type": "string" },
         "studyText": { "type": "string", "minLength": 1 },
         "flaw": { "type": "string", "minLength": 1 },
-        "trialCount": { "type": "integer", "minimum": 1 }
+        "trialCount": { "type": "integer", "minimum": 1 },
+        "cueSummary": { "type": "string", "minLength": 1 }
       }
     },
 
@@ -41,11 +42,13 @@
         "speaker": { "enum": ["tutor", "peer"] },
         "variants": {
           "type": "object",
-          "required": ["T", "F"],
+          "required": ["TT", "TF", "FT", "FF"],
           "additionalProperties": false,
           "properties": {
-            "T": { "type": "string", "minLength": 1 },
-            "F": { "type": "string", "minLength": 1 }
+            "TT": { "type": "string", "minLength": 1 },
+            "TF": { "type": "string", "minLength": 1 },
+            "FT": { "type": "string", "minLength": 1 },
+            "FF": { "type": "string", "minLength": 1 }
           }
         }
       }

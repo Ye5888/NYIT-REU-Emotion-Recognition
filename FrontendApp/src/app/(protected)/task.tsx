@@ -1,17 +1,20 @@
 /**
  * The learning task: one case study critiqued across its trials.
  *
- * Each trial runs advance turn → peer/tutor assertions → forced choice. Which
- * variant of each assertion is spoken comes from the session's condition; the
- * forced choice's correct answer does not, since the agents' claims vary but
- * the facet's ground truth does not.
+ * A trial reveals one thing per press — advance turn, peer assertion, tutor
+ * assertion, then the forced choice. Which utterance each agent speaks comes
+ * from the session's condition; the forced choice's correct answer does not,
+ * since the agents' claims vary but the facet's ground truth does not.
+ *
+ * Everything said stays on screen, including the participant's own answers, so
+ * the trialogue reads as one accumulating conversation.
  */
 import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { DialogueTurn } from '@/components/experiment/dialogue-turn';
+import { DialogueTurn, type TurnSpeaker } from '@/components/experiment/dialogue-turn';
 import { ForcedChoice } from '@/components/experiment/forced-choice';
 import { Probe, type ProbeAnswers } from '@/components/experiment/probe';
 import { ThemedText } from '@/components/themed-text';
@@ -19,8 +22,14 @@ import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useSession } from '@/experiment/session';
 import { useExperimentData } from '@/experiment/use-experiment-data';
-import { utteranceFor, type Condition, type Speaker } from '@/experiment/types';
+import { utteranceFor, type Condition } from '@/experiment/types';
 import { useTheme } from '@/hooks/use-theme';
+
+interface Line {
+  key: string;
+  speaker: TurnSpeaker;
+  text: string;
+}
 
 export default function TaskScreen() {
   const router = useRouter();
@@ -28,29 +37,29 @@ export default function TaskScreen() {
   const { session, update } = useSession();
   const { data, error } = useExperimentData();
 
-  const [reading, setReading] = useState(true);
   const [trialIndex, setTrialIndex] = useState(0);
-  const [step, setStep] = useState(0); // turns revealed in the current trial
+  const [step, setStep] = useState(0); // how much of the current trial is revealed
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [probing, setProbing] = useState(false);
   const scroller = useRef<ScrollView>(null);
 
   const trial = data?.trials[trialIndex];
   const condition = data?.condition as Condition | undefined;
 
-  /** Everything said so far: completed trials in full, current trial up to `step`. */
-  const transcript = useMemo(() => {
+  const transcript = useMemo<Line[]>(() => {
     if (!data || !condition) return [];
-    const lines: { key: string; speaker: Speaker; text: string }[] = [];
+    const lines: Line[] = [];
 
     data.trials.forEach((t, i) => {
       if (i > trialIndex) return;
-      const limit = i < trialIndex ? 1 + t.assertions.length : step;
+      const turns = 1 + t.assertions.length;
+      const shown = i < trialIndex ? turns : Math.min(step, turns);
 
-      if (limit > 0) {
+      if (shown > 0) {
         lines.push({ key: `${t.id}-advance`, speaker: t.advanceTurn.speaker, text: t.advanceTurn.text });
       }
       t.assertions.forEach((assertion, j) => {
-        if (limit > j + 1) {
+        if (shown > j + 1) {
           lines.push({
             key: `${t.id}-a${j}`,
             speaker: assertion.speaker,
@@ -58,10 +67,15 @@ export default function TaskScreen() {
           });
         }
       });
+
+      const answer = answers[t.id];
+      if (answer) {
+        lines.push({ key: `${t.id}-answer`, speaker: 'participant', text: answer });
+      }
     });
 
     return lines;
-  }, [data, condition, trialIndex, step]);
+  }, [data, condition, trialIndex, step, answers]);
 
   if (error) {
     return (
@@ -83,14 +97,16 @@ export default function TaskScreen() {
   }
 
   const turnsInTrial = 1 + trial.assertions.length;
-  const awaitingChoice = step >= turnsInTrial;
+  const questionShown = step > turnsInTrial;
+  const answered = !!answers[trial.id];
 
-  function advance() {
+  function reveal() {
     setStep((s) => s + 1);
     requestAnimationFrame(() => scroller.current?.scrollToEnd({ animated: true }));
   }
 
-  function answer(value: string) {
+  function submitAnswer(value: string) {
+    setAnswers((a) => ({ ...a, [trial!.id]: value }));
     update((s) => ({
       ...s,
       forcedChoices: [
@@ -105,17 +121,24 @@ export default function TaskScreen() {
       ],
     }));
 
-    if (session.assignment.probeTiming === 'immediate') setProbing(true);
-    else nextTrial();
+    if (trialIndex + 1 < data!.trials.length) {
+      setTrialIndex((i) => i + 1);
+      setStep(0);
+      requestAnimationFrame(() => scroller.current?.scrollToEnd({ animated: true }));
+    } else if (session.assignment.probeTiming === 'immediate') {
+      setProbing(true);
+    } else {
+      router.push('/probe');
+    }
   }
 
-  function recordProbe(answers: ProbeAnswers) {
+  function recordProbe(probeAnswers: ProbeAnswers) {
     update((s) => ({
       ...s,
       probes: [
         ...s.probes,
-        ...Object.entries(answers).map(([questionId, value]) => ({
-          trialId: trial!.id,
+        ...Object.entries(probeAnswers).map(([questionId, value]) => ({
+          caseStudyId: data!.caseStudy.id,
           questionId,
           value,
           respondedAt: Date.now(),
@@ -123,16 +146,7 @@ export default function TaskScreen() {
       ],
     }));
     setProbing(false);
-    nextTrial();
-  }
-
-  function nextTrial() {
-    if (trialIndex + 1 < data!.trials.length) {
-      setTrialIndex((i) => i + 1);
-      setStep(0);
-    } else {
-      router.push(session.assignment.probeTiming === 'retrospective' ? '/probe' : '/posttest');
-    }
+    router.push('/posttest');
   }
 
   const probeQuestions = session.assignment.probeOrder
@@ -142,12 +156,10 @@ export default function TaskScreen() {
   return (
     <ThemedView style={styles.root}>
       <SafeAreaView style={styles.safe}>
-        <View style={styles.header}>
-          <ThemedText type="small" themeColor="textSecondary">
-            {data.caseStudy.topic.replace(/_/g, ' ')} {'·'} trial {trialIndex + 1} of{' '}
-            {data.trials.length}
-          </ThemedText>
-        </View>
+        <ThemedText type="small" themeColor="textSecondary" style={styles.header}>
+          {data.caseStudy.topic.replace(/_/g, ' ')} {'·'} trial {trialIndex + 1} of{' '}
+          {data.trials.length}
+        </ThemedText>
 
         <ScrollView ref={scroller} contentContainerStyle={styles.scroll}>
           <ThemedView type="backgroundElement" style={styles.study}>
@@ -157,51 +169,45 @@ export default function TaskScreen() {
             <ThemedText>{data.caseStudy.studyText}</ThemedText>
           </ThemedView>
 
-          {!reading ? (
-            <View style={styles.dialogue}>
-              {transcript.map((line) => (
-                <DialogueTurn key={line.key} speaker={line.speaker} text={line.text} />
-              ))}
+          <View style={styles.dialogue}>
+            {transcript.map((line) => (
+              <DialogueTurn key={line.key} speaker={line.speaker} text={line.text} />
+            ))}
 
-              {awaitingChoice ? (
-                <ForcedChoice
-                  key={trial.id}
-                  prompt={trial.forcedChoicePrompt}
-                  choices={trial.choices}
-                  onAnswer={answer}
-                />
-              ) : null}
-            </View>
-          ) : null}
+            {questionShown && !answered ? (
+              <ForcedChoice
+                key={trial.id}
+                prompt={trial.forcedChoicePrompt}
+                choices={trial.choices}
+                onSubmit={submitAnswer}
+              />
+            ) : null}
+          </View>
         </ScrollView>
 
-        {reading ? (
-          <PrimaryButton label="I've read the study" onPress={() => setReading(false)} />
-        ) : !awaitingChoice ? (
-          <PrimaryButton label="Continue" onPress={advance} />
+        {!questionShown ? (
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: theme.text }]}
+            onPress={reveal}
+            accessibilityRole="button">
+            <ThemedText style={[styles.buttonText, { color: theme.background }]}>Continue</ThemedText>
+          </TouchableOpacity>
         ) : null}
       </SafeAreaView>
 
       {probing ? (
         <View style={styles.overlay}>
           <View style={styles.overlayInner}>
-            <Probe timing="immediate" questions={probeQuestions} onDone={recordProbe} />
+            <Probe
+              timing="immediate"
+              questions={probeQuestions}
+              onDone={recordProbe}
+            />
           </View>
         </View>
       ) : null}
     </ThemedView>
   );
-
-  function PrimaryButton({ label, onPress }: { label: string; onPress: () => void }) {
-    return (
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: theme.text }]}
-        onPress={onPress}
-        accessibilityRole="button">
-        <ThemedText style={[styles.buttonText, { color: theme.background }]}>{label}</ThemedText>
-      </TouchableOpacity>
-    );
-  }
 }
 
 function Centered({ children }: { children: React.ReactNode }) {

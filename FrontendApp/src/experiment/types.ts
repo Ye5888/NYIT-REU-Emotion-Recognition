@@ -24,6 +24,8 @@ export interface CaseStudy {
   studyText: string;
   flaw: string;
   trialCount: number;
+  /** Used to cue recall when probes are asked retrospectively. */
+  cueSummary?: string;
 }
 
 export interface Turn {
@@ -31,9 +33,14 @@ export interface Turn {
   text: string;
 }
 
+/**
+ * Keyed on the full condition, not on the speaker's own truth value: an
+ * utterance's discourse markers depend on whether the other agent agreed, so
+ * two variants cannot cover four combinations.
+ */
 export interface Assertion {
   speaker: Speaker;
-  variants: Record<'T' | 'F', string>;
+  variants: Record<Condition, string>;
 }
 
 export interface TaskTrial {
@@ -99,8 +106,9 @@ export interface ForcedChoiceResponse {
   respondedAt: number;
 }
 
+/** Probes are asked once per case study, not once per trial. */
 export interface ProbeResponse {
-  trialId: string;
+  caseStudyId: string;
   questionId: string;
   value: number | string;
   respondedAt: number;
@@ -138,8 +146,11 @@ export interface SessionState {
   assessments: AssessmentResponse[];
 }
 
-/** Which of an assertion's two variants is spoken under a given condition. */
 export function utteranceFor(assertion: Assertion, condition: Condition): string {
-  const truth = assertion.speaker === 'tutor' ? condition[0] : condition[1];
-  return assertion.variants[truth as 'T' | 'F'];
+  return assertion.variants[condition];
+}
+
+/** Whether this speaker asserts the truth under a given condition. */
+export function isTruthful(assertion: Assertion, condition: Condition): boolean {
+  return (assertion.speaker === 'tutor' ? condition[0] : condition[1]) === 'T';
 }

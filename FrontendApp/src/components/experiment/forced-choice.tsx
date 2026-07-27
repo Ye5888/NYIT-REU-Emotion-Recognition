@@ -9,60 +9,58 @@ import { useTheme } from '@/hooks/use-theme';
 interface Props {
   prompt: string;
   choices: string[];
-  onAnswer: (value: string) => void;
+  onSubmit: (value: string) => void;
 }
 
 /**
- * The in-task binary question. This is D'Mello's behavioral measure, so it is
- * answered without feedback — the participant is never told whether they were
- * right, which would contaminate later trials.
+ * The in-task binary question. Selecting only selects; Continue commits. No
+ * feedback is given either way — the participant is never told whether they
+ * were right, which would contaminate later trials.
  */
-export function ForcedChoice({ prompt, choices, onAnswer }: Props) {
+export function ForcedChoice({ prompt, choices, onSubmit }: Props) {
   const theme = useTheme();
-  const [answered, setAnswered] = useState<string | null>(null);
-
-  function choose(value: string) {
-    if (answered) return;
-    setAnswered(value);
-    onAnswer(value);
-  }
+  const [selected, setSelected] = useState<string | null>(null);
 
   return (
     <View style={styles.root}>
       <ThemedText type="smallBold">{SPEAKER_LABELS.tutor}</ThemedText>
-      <ThemedText style={styles.prompt}>{prompt}</ThemedText>
+      <ThemedText>{prompt}</ThemedText>
+
       <View style={styles.choices}>
         {choices.map((choice) => {
-          const selected = answered === choice;
+          const on = selected === choice;
           return (
             <TouchableOpacity
               key={choice}
-              disabled={!!answered}
-              onPress={() => choose(choice)}
-              accessibilityRole="button"
-              accessibilityState={{ selected, disabled: !!answered }}
+              onPress={() => setSelected(choice)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: on }}
               style={[
                 styles.choice,
-                {
-                  borderColor: theme.text,
-                  backgroundColor: selected ? theme.text : 'transparent',
-                  opacity: answered && !selected ? 0.4 : 1,
-                },
+                { borderColor: theme.text, backgroundColor: on ? theme.text : 'transparent' },
               ]}>
-              <ThemedText style={{ color: selected ? theme.background : theme.text }}>
+              <ThemedText style={{ color: on ? theme.background : theme.text }}>
                 {choice}
               </ThemedText>
             </TouchableOpacity>
           );
         })}
       </View>
+
+      <TouchableOpacity
+        disabled={!selected}
+        onPress={() => selected && onSubmit(selected)}
+        accessibilityRole="button"
+        accessibilityState={{ disabled: !selected }}
+        style={[styles.continue, { backgroundColor: theme.text, opacity: selected ? 1 : 0.3 }]}>
+        <ThemedText style={[styles.continueText, { color: theme.background }]}>Continue</ThemedText>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { gap: Spacing.two, marginTop: Spacing.two },
-  prompt: { marginBottom: Spacing.one },
   choices: { flexDirection: 'row', gap: Spacing.two, flexWrap: 'wrap' },
   choice: {
     flex: 1,
@@ -73,4 +71,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.three,
     alignItems: 'center',
   },
+  continue: {
+    paddingVertical: Spacing.three,
+    borderRadius: Spacing.three,
+    alignItems: 'center',
+    marginTop: Spacing.two,
+  },
+  continueText: { fontSize: 16, fontWeight: '600' },
 });

@@ -1,7 +1,9 @@
 /**
- * The retrospective arm: after the task, the participant answers the same probe
- * set once per trial, with the trial re-presented so they know which moment is
- * being asked about. Participants in the immediate arm never reach this screen.
+ * The retrospective arm: probes come after the whole task, once per case study.
+ * The participant no longer has the material on screen, so each case study is
+ * re-presented by its cueSummary before its probe.
+ *
+ * Participants in the immediate arm answer during the task and never land here.
  */
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
@@ -12,16 +14,14 @@ import { Probe, type ProbeAnswers } from '@/components/experiment/probe';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
-import { SPEAKER_LABELS } from '@/experiment/config';
 import { useSession } from '@/experiment/session';
 import { useExperimentData } from '@/experiment/use-experiment-data';
-import { utteranceFor, type Condition } from '@/experiment/types';
 
 export default function RetrospectiveProbeScreen() {
   const router = useRouter();
   const { session, update } = useSession();
   const { data, error } = useExperimentData();
-  const [trialIndex, setTrialIndex] = useState(0);
+  const [index, setIndex] = useState(0);
 
   if (error || !data) {
     return (
@@ -39,12 +39,9 @@ export default function RetrospectiveProbeScreen() {
     );
   }
 
-  const trial = data.trials[trialIndex];
-  const condition = data.condition as Condition;
-
-  const disagreement = trial.assertions
-    .map((a) => `${SPEAKER_LABELS[a.speaker]}: "${utteranceFor(a, condition)}"`)
-    .join('\n');
+  // One case study today; this walks the list once the other seven exist.
+  const caseStudies = [data.caseStudy];
+  const caseStudy = caseStudies[index];
 
   function record(answers: ProbeAnswers) {
     update((s) => ({
@@ -52,7 +49,7 @@ export default function RetrospectiveProbeScreen() {
       probes: [
         ...s.probes,
         ...Object.entries(answers).map(([questionId, value]) => ({
-          trialId: trial.id,
+          caseStudyId: caseStudy.id,
           questionId,
           value,
           respondedAt: Date.now(),
@@ -60,7 +57,7 @@ export default function RetrospectiveProbeScreen() {
       ],
     }));
 
-    if (trialIndex + 1 < data!.trials.length) setTrialIndex((i) => i + 1);
+    if (index + 1 < caseStudies.length) setIndex((i) => i + 1);
     else router.push('/posttest');
   }
 
@@ -68,20 +65,26 @@ export default function RetrospectiveProbeScreen() {
     .map((id) => data.probeQuestions[id])
     .filter(Boolean);
 
+  const cue =
+    caseStudy.cueSummary ??
+    `the study on ${caseStudy.topic.replace(/_/g, ' ')} that you and the agents worked through`;
+
   return (
     <ThemedView style={styles.root}>
       <SafeAreaView style={styles.safe}>
-        <ThemedText type="small" themeColor="textSecondary" style={styles.progress}>
-          Looking back {'·'} {trialIndex + 1} of {data.trials.length}
-        </ThemedText>
+        {caseStudies.length > 1 ? (
+          <ThemedText type="small" themeColor="textSecondary" style={styles.progress}>
+            Looking back {'·'} {index + 1} of {caseStudies.length}
+          </ThemedText>
+        ) : null}
         <View style={styles.center}>
           <Probe
-            key={trial.id}
+            key={caseStudy.id}
             timing="retrospective"
             questions={questions}
             context={{
-              heading: `When you were asked: "${trial.forcedChoicePrompt}"`,
-              body: disagreement,
+              heading: 'Think back to',
+              body: `${cue}.`,
             }}
             onDone={record}
           />

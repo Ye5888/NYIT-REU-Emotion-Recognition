@@ -11,15 +11,19 @@
       {
         "speaker": "peer",
         "variants": {
-          "T": "I think there was something problematic about this study.",
-          "F": "I don't think there was anything problematic about this study."
+          "TT": "I think there was something problematic about this study.",
+          "TF": "I don't think there was anything problematic about this study.",
+          "FT": "I think there was something problematic about this study.",
+          "FF": "I don't think there was anything problematic about this study."
         }
       },
       {
         "speaker": "tutor",
         "variants": {
-          "T": "I think there was a problem with it.",
-          "F": "I didn't see anything problematic about it."
+          "TT": "I'd say the same — I think there was a problem with it.",
+          "TF": "I see it differently. I think there was a problem with it.",
+          "FT": "I'm not sure I agree. I didn't see anything problematic about it.",
+          "FF": "That matches my read — I didn't see anything problematic about it."
         }
       }
     ],
@@ -40,15 +44,19 @@
       {
         "speaker": "peer",
         "variants": {
-          "T": "I think how the participants were put into each condition is a real problem.",
-          "F": "Well, I think how the participants were put into each condition was good, so that's not a problem."
+          "TT": "I think how the participants were put into each condition is a real problem.",
+          "TF": "Well, I think how the participants were put into each condition was good, so that's not a problem.",
+          "FT": "I think how the participants were put into each condition is a real problem.",
+          "FF": "Well, I think how the participants were put into each condition was good, so that's not a problem."
         }
       },
       {
         "speaker": "tutor",
         "variants": {
-          "T": "It was problematic.",
-          "F": "That part seems fine to me."
+          "TT": "Exactly. It was problematic.",
+          "TF": "It was problematic.",
+          "FT": "I don't see it that way. That part seems fine to me.",
+          "FF": "I'd agree with you there. That part seems fine to me."
         }
       }
     ],
@@ -69,15 +77,19 @@
       {
         "speaker": "peer",
         "variants": {
-          "T": "No, they can't know that.",
-          "F": "Yes, they can."
+          "TT": "No, they can't.",
+          "TF": "Yes, they can.",
+          "FT": "No, they can't.",
+          "FF": "Yes, they can."
         }
       },
       {
         "speaker": "tutor",
         "variants": {
-          "T": "I disagree.",
-          "F": "I agree with Chris on that."
+          "TT": "Right. They have no way of knowing that.",
+          "TF": "I disagree.",
+          "FT": "Hmm, I'd push back. They can be confident the groups are equivalent.",
+          "FF": "Agreed. They can be confident the groups are equivalent."
         }
       }
     ],
@@ -98,15 +110,19 @@
       {
         "speaker": "tutor",
         "variants": {
-          "T": "I think it would've been better if they had randomly assigned people to use or not use the textbook.",
-          "F": "I think signing up for different sections is random enough."
+          "TT": "I think it would've been better if they had randomly assigned people to use or not use the textbook.",
+          "TF": "I think it would've been better if they had randomly assigned people to use or not use the textbook.",
+          "FT": "I think signing up for different sections is random enough.",
+          "FF": "I think signing up for different sections is random enough."
         }
       },
       {
         "speaker": "peer",
         "variants": {
-          "T": "They really should have randomly assigned people to use or not use the textbook.",
-          "F": "No, I think signing up for different sections is random enough."
+          "TT": "That's what I was thinking too — they really should have randomly assigned people.",
+          "TF": "No, I think signing up for different sections is random enough.",
+          "FT": "I'm not convinced. They really should have randomly assigned people to use or not use the textbook.",
+          "FF": "Same here. Signing up for different sections is random enough."
         }
       }
     ],

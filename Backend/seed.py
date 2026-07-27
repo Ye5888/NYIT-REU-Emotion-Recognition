@@ -70,6 +70,20 @@ def validate_references(data):
         speakers = sorted(a["speaker"] for a in trial["assertions"])
         if speakers != ["peer", "tutor"]:
             errors.append(f"taskTrials/{trial_id} needs one peer and one tutor assertion, got {speakers}")
+        # A speaker's line may differ across conditions it is TRUE in (the marker
+        # changes with whether the other agent agreed), but a line must never be
+        # reused across a condition where that speaker is true and one where it
+        # is false — that would mean the manipulation did not manipulate.
+        for assertion in trial["assertions"]:
+            slot = 0 if assertion["speaker"] == "tutor" else 1
+            true_lines = {v for c, v in assertion["variants"].items() if c[slot] == "T"}
+            false_lines = {v for c, v in assertion["variants"].items() if c[slot] == "F"}
+            shared = true_lines & false_lines
+            if shared:
+                errors.append(
+                    f"taskTrials/{trial_id} {assertion['speaker']} reuses a line when true and "
+                    f"when false: {sorted(shared)[0][:60]!r}"
+                )
         if trial["correctKey"] not in trial["choices"]:
             errors.append(f"taskTrials/{trial_id} correctKey not among its choices")
 
