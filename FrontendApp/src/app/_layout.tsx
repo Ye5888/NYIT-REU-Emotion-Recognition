@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { SessionProvider } from '@/experiment/session';
+import { AuthProvider } from '@/hooks/useAuth';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -25,13 +26,15 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <SessionProvider>
-          <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-            <AnimatedSplashOverlay />
-            <Stack screenOptions={{ headerShown: false, gestureEnabled: false }} />
-            <StatusBar style="auto" />
-          </ThemeProvider>
-        </SessionProvider>
+        <AuthProvider>
+          <SessionProvider>
+            <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+              <AnimatedSplashOverlay />
+              <Stack screenOptions={{ headerShown: false, gestureEnabled: false }} />
+              <StatusBar style="auto" />
+            </ThemeProvider>
+          </SessionProvider>
+        </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

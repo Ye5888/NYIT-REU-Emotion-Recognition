@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 
-import { loginUser } from '../../service/authService';
+import { signUpUser } from '../../service/authService';
 import { useAuth } from '@/hooks/useAuth';
 
 import {
@@ -19,7 +19,7 @@ export default function LoginScreen() {
   const router = useRouter();
   const { user, setUser } = useAuth();
 
-  const [logInCredentials, setLogInCredentials] = useState< {username?:string, password?:string} | null >(null);
+  const [signUpCredentials, setSignUpCredentials] = useState< {username?:string, password?:string, retypePassword?:string} | null >(null);
 
   useEffect(() => {
     if(user){
@@ -28,9 +28,11 @@ export default function LoginScreen() {
     }
   },[user]);
 
-  const logIn = async () => {
-    const authenticatedUser = await loginUser({username:logInCredentials?.username, password:logInCredentials?.password});
-    setUser(authenticatedUser ? authenticatedUser : null);
+  const signUp = async () => {
+    if(signUpCredentials?.password === signUpCredentials?.retypePassword && signUpCredentials?.password && signUpCredentials?.username){
+      const authenticatedUser = await signUpUser({username:signUpCredentials?.username, password:signUpCredentials?.password});
+      setUser(authenticatedUser ? authenticatedUser : null);
+    };
   };
 
   return (
@@ -41,10 +43,10 @@ export default function LoginScreen() {
       >
         <View style={styles.content}>
           <View style={styles.header}>
-            <Text style={styles.title}>Welcome Back</Text>
+            <Text style={styles.title}>Sign Up</Text>
 
             <Text style={styles.subtitle}>
-              Log in to continue your session.
+              Don't Have an Account? Sign Up!
             </Text>
           </View>
 
@@ -58,8 +60,8 @@ export default function LoginScreen() {
                 placeholderTextColor="#999"
                 autoCapitalize="none"
                 autoCorrect={false}
-                value={logInCredentials?.username}
-                onChangeText={input=>(setLogInCredentials(prev => ({...prev, username:input})))}
+                value={signUpCredentials?.username}
+                onChangeText={input => {setSignUpCredentials(prev => ({...prev, username:input}))}}
               />
             </View>
 
@@ -72,25 +74,33 @@ export default function LoginScreen() {
                 placeholderTextColor="#999"
                 secureTextEntry
                 autoCapitalize="none"
-                value={logInCredentials?.password}
-                onChangeText={input=>(setLogInCredentials(prev => ({...prev, password:input})))}
+                value={signUpCredentials?.password}
+                onChangeText={input => {setSignUpCredentials(prev => ({...prev, password:input}))}}
               />
             </View>
 
-            <Pressable style={styles.loginButton} onPress={logIn}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Retype Password</Text>
+
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your password"
+                placeholderTextColor="#999"
+                secureTextEntry
+                autoCapitalize="none"
+                value={signUpCredentials?.retypePassword}
+                onChangeText={input => {setSignUpCredentials(prev => ({...prev, retypePassword:input}))}}
+              />
+            </View>
+
+            { !(signUpCredentials?.password && signUpCredentials?.retypePassword)  ? <></> : signUpCredentials?.password === signUpCredentials?.retypePassword ? <Text>Passwords Match!</Text> : <Text>Passwords Do Not Match</Text> }
+
+            <Pressable style={styles.loginButton} onPress={signUp}>
               <Text style={styles.loginButtonText}>
-                Log In
+                Create User
               </Text>
             </Pressable>
-              { user ? <Text>Logged In!</Text> : user === null ? <Text>failed to log in</Text> : <></>}
-              
-            <Pressable style={styles.loginButton} onPress={async ()=>{   
-                router.replace("/(protected)/signUp");             
-              }}>
-              <Text style={styles.loginButtonText}>
-                Sign Up
-              </Text>
-            </Pressable>
+              { user ? <Text>Signed Up!</Text> : user === null ? <Text>failed to sign up</Text> : <></>}
           </View>
         </View>
       </KeyboardAvoidingView>

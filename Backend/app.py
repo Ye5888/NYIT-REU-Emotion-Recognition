@@ -5,6 +5,7 @@ from predict import predict_emotion
 from chatbot import get_chatbot_response
 from auth import auth_required
 from encryption import encrypt, decrypt
+import json
 
 import jwt
 from jwt_utils import generate_jwt
@@ -142,20 +143,24 @@ def add_emotion_record():
 #@auth_required
 def modify_user(user_id):
     data = request.get_json()
+    preferences = data.get("preferences")
 
     doc_ref = db.collection("users").document(user_id)
-    doc = doc_ref.get()
 
-    if not doc.exists:
-        return jsonify({"message" : "document not exist"}), 404
+    print(doc_ref.get().to_dict())
+    print(preferences)
+    # doc = doc_ref.get()
+
+    # if not doc.exists:
+    #     return jsonify({"message" : "document not exist"}), 404
     
     
-    if "name" in data:
-        data["name"] = encrypt(data["name"])
-    if "email" in data:
-        data["email"] = encrypt(data["email"])
+    # if "name" in data:
+    #     data["name"] = encrypt(data["name"])
+    # if "email" in data:
+    #     data["email"] = encrypt(data["email"])
 
-    doc_ref.update(data)
+    doc_ref.update({"preferences":preferences})
     return jsonify({"message" : "user successfully updated"}), 200
 
 @app.route("/sessions/<session_id>", methods = ["PUT"])
@@ -270,7 +275,7 @@ def login():
     if existing_token:
         try:
             jwt.decode(existing_token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
-            return jsonify(user_data)
+            return jsonify({"token" : existing_token, "userId": user_doc.id}), 200
         except Exception:
             pass
 
@@ -305,6 +310,7 @@ def signup():
         "userId" : user_ref[-1].id,
         "expirationDate" : datetime.now(timezone.utc) + timedelta(hours=720)
     })
+    # return jsonify(user_ref), 200
     return jsonify({"token" : token}), 200
 
 
