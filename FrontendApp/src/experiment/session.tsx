@@ -28,6 +28,8 @@ export function createSession(): SessionState {
     forcedChoices: [],
     probes: [],
     assessments: [],
+    recordingStartedAt: null,
+    marks: [],
   };
 }
 

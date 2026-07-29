@@ -6,7 +6,7 @@
  * Participants in the immediate arm answer during the task and never land here.
  */
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -15,13 +15,23 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useSession } from '@/experiment/session';
+import { useCaptureMarks } from '@/experiment/use-capture-marks';
 import { useExperimentData } from '@/experiment/use-experiment-data';
 
 export default function RetrospectiveProbeScreen() {
   const router = useRouter();
   const { session, update } = useSession();
   const { data, error } = useExperimentData();
+  const mark = useCaptureMarks();
   const [index, setIndex] = useState(0);
+
+  // Matters more here than in the immediate arm: a retrospective probe asks
+  // about a window that has already closed, so when it was *shown* is the only
+  // record of how much time sat between the experience and the report.
+  const shownCaseStudyId = data?.caseStudy.id;
+  useEffect(() => {
+    if (shownCaseStudyId) mark('probeOnset', shownCaseStudyId);
+  }, [shownCaseStudyId, mark]);
 
   if (error || !data) {
     return (

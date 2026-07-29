@@ -34,6 +34,17 @@ export const SPEAKER_ROLES = {
 export const DATA_CATEGORIES = ['webcam', 'audio', 'behavioralTraces', 'modelParams'] as const;
 export type DataCategory = (typeof DATA_CATEGORIES)[number];
 
+/**
+ * Demo affordance: a button during the task that reveals the live camera feed,
+ * to show a room that capture is still running.
+ *
+ * Expected to come OUT before real participants. Reminding someone mid-task that
+ * they are on camera induces self-focused attention, which moves both affect and
+ * self-report — it would perturb the thing being measured. Kept behind a flag so
+ * removing it is this one line.
+ */
+export const SHOW_CAMERA_IN_TASK = true;
+
 export const DATA_CATEGORY_LABELS: Record<DataCategory, string> = {
   webcam: 'Webcam video',
   audio: 'Audio',

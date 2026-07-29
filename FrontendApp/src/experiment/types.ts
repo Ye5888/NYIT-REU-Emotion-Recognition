@@ -134,6 +134,31 @@ export interface ConsentState {
 /** Derived from ConsentState — never stored. See ./consent.ts. */
 export type SubmissionStatus = 'none' | 'partial' | 'complete';
 
+// --- Capture side ------------------------------------------------------------
+
+/**
+ * When something appeared, as opposed to when it was answered.
+ *
+ * Every response already carries `respondedAt`, so the video offset of an
+ * *answer* is just `respondedAt - recordingStartedAt`. What that cannot give us
+ * is when the participant first saw the thing they were answering — and the
+ * interval between the two is response latency, which is signal in its own
+ * right. Hence onsets, recorded separately.
+ */
+export interface CaptureMark {
+  kind: 'trialOnset' | 'probeOnset';
+  /** Trial id or case-study id, depending on `kind`. */
+  refId: string;
+  at: number;
+}
+
+export type CaptureStatus =
+  | 'idle' // nothing requested yet
+  | 'ready' // camera acquired, preview live, not recording
+  | 'recording'
+  | 'stopped'
+  | 'unavailable'; // denied, no device, or unsupported platform
+
 export interface SessionState {
   sessionId: string;
   accountId?: string; // set on sign-in (return-to-submit flow)
@@ -144,6 +169,9 @@ export interface SessionState {
   forcedChoices: ForcedChoiceResponse[];
   probes: ProbeResponse[];
   assessments: AssessmentResponse[];
+  /** Epoch ms at which capture began; every other timestamp is an offset from it. */
+  recordingStartedAt: number | null;
+  marks: CaptureMark[];
 }
 
 export function utteranceFor(assertion: Assertion, condition: Condition): string {

@@ -10,17 +10,20 @@
  * the trialogue reads as one accumulating conversation.
  */
 import { useRouter } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CameraPreview } from '@/components/experiment/camera-preview';
 import { DialogueTurn, type TurnSpeaker } from '@/components/experiment/dialogue-turn';
 import { ForcedChoice } from '@/components/experiment/forced-choice';
 import { Probe, type ProbeAnswers } from '@/components/experiment/probe';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { SHOW_CAMERA_IN_TASK } from '@/experiment/config';
 import { useSession } from '@/experiment/session';
+import { useCaptureMarks } from '@/experiment/use-capture-marks';
 import { useExperimentData } from '@/experiment/use-experiment-data';
 import { utteranceFor, type Condition } from '@/experiment/types';
 import { useTheme } from '@/hooks/use-theme';
@@ -36,11 +39,13 @@ export default function TaskScreen() {
   const theme = useTheme();
   const { session, update } = useSession();
   const { data, error } = useExperimentData();
+  const mark = useCaptureMarks();
 
   const [trialIndex, setTrialIndex] = useState(0);
   const [step, setStep] = useState(0); // how much of the current trial is revealed
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [probing, setProbing] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
   const scroller = useRef<ScrollView>(null);
 
   const trial = data?.trials[trialIndex];
@@ -76,6 +81,18 @@ export default function TaskScreen() {
 
     return lines;
   }, [data, condition, trialIndex, step, answers]);
+
+  // Onset, not response: `respondedAt` already says when they answered, so this
+  // is the other end of the interval. Fires once per trial as it becomes current.
+  const trialId = trial?.id;
+  useEffect(() => {
+    if (trialId) mark('trialOnset', trialId);
+  }, [trialId, mark]);
+
+  const probedCaseStudyId = probing ? data?.caseStudy.id : undefined;
+  useEffect(() => {
+    if (probedCaseStudyId) mark('probeOnset', probedCaseStudyId);
+  }, [probedCaseStudyId, mark]);
 
   if (error) {
     return (
@@ -195,6 +212,23 @@ export default function TaskScreen() {
         ) : null}
       </SafeAreaView>
 
+      {/* Demo affordance — see SHOW_CAMERA_IN_TASK in config.ts for why it goes. */}
+      {SHOW_CAMERA_IN_TASK ? (
+        <View style={styles.cameraCorner} pointerEvents="box-none">
+          {showCamera ? (
+            <View style={styles.cameraInset}>
+              <CameraPreview height={120} />
+            </View>
+          ) : null}
+          <TouchableOpacity
+            onPress={() => setShowCamera((v) => !v)}
+            accessibilityRole="button"
+            style={[styles.cameraToggle, { borderColor: theme.text }]}>
+            <ThemedText type="small">{showCamera ? 'Hide camera' : 'Show camera'}</ThemedText>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       {probing ? (
         <View style={styles.overlay}>
           <View style={styles.overlayInner}>
@@ -248,4 +282,18 @@ const styles = StyleSheet.create({
     padding: Spacing.four,
   },
   overlayInner: { width: '100%', maxWidth: 480 },
+  cameraCorner: {
+    position: 'absolute',
+    right: Spacing.three,
+    bottom: Spacing.three,
+    alignItems: 'flex-end',
+    gap: Spacing.two,
+  },
+  cameraInset: { width: 160, overflow: 'hidden', borderRadius: Spacing.two },
+  cameraToggle: {
+    borderWidth: 1,
+    borderRadius: Spacing.three,
+    paddingVertical: Spacing.one,
+    paddingHorizontal: Spacing.three,
+  },
 });
