@@ -1,6 +1,6 @@
-from flask import Flask, jsonify, request
+from flask import Flask, g, jsonify, request
 from flask_cors import CORS
-from firebase_admin import credentials, firestore
+from firebase_admin import firestore
 from predict import predict_emotion
 from chatbot import get_chatbot_response
 from auth import auth_required
@@ -10,15 +10,20 @@ from firebase_config import db
 import jwt
 from jwt_utils import generate_jwt
 import os
+import shutil
 import subprocess
 from datetime import datetime, timedelta, timezone
 from werkzeug.utils import secure_filename
 
 
-cred = credentials.Certificate("serviceAccountKey.json")
-
 app = Flask(__name__)
 CORS(app)
+
+# Two forms, deliberately. The absolute one is for touching the filesystem; the
+# relative one is what gets stored, because an absolute path records the layout
+# of whichever machine happened to run the server and is wrong everywhere else.
+VIDEO_SUBDIR = os.path.join("uploads", "videos")
+VIDEO_DIR = os.path.join(os.path.dirname(__file__), VIDEO_SUBDIR)
 
 
 ### USERS
@@ -96,23 +101,71 @@ def get_all_sessions():
         sessions.append(data)
     return jsonify(sessions), 200
 
+def session_owned_by_caller(session_id):
+    """
+    (doc_ref, error_response) for a session the caller is allowed to write.
+
+    Session ids are chosen by the client so that writes can be idempotent, which
+    means they are also guessable — and /sessions lists them. Without this check
+    any authenticated user could address another participant's run: overwrite
+    their consent, file answers under their id, or (since userId is stamped from
+    the caller's token) reassign the run to themselves. Ownership is checked
+    rather than forbidding overwrite outright, because a repeated write from the
+    run's own owner is a retry, not an attack.
+    """
+    doc_ref = db.collection("sessions").document(session_id)
+    snapshot = doc_ref.get()
+
+    if snapshot.exists:
+        owner = (snapshot.to_dict() or {}).get("userId")
+        if owner != g.current_user_id:
+            return None, (jsonify({"error": "forbidden"}), 403)
+
+    return doc_ref, None
+
+
 @app.route("/sessions", methods=["POST"])
 @auth_required
 def add_session():
+    # The client names the session, rather than Firestore generating an id the
+    # client never learns: responses are posted to /sessions/<id>/responses, so
+    # the app has to know the id before it can write anything. The id is derived
+    # from the run's seed, so it is reproducible, and set() rather than add()
+    # makes a retried create idempotent instead of leaving a duplicate run.
     data = request.get_json()
+    session_id = data.pop("id", None)
+    if not session_id:
+        return jsonify({"error": "id is required"}), 400
+
+    doc_ref, error = session_owned_by_caller(session_id)
+    if error:
+        return error
+
+    # Stamped from the token, never taken from the body — a client should not be
+    # able to file a run under someone else's account.
+    data["userId"] = g.current_user_id
+
     if "video_url" in data:
         data["video_url"] = encrypt(data["video_url"])
-    db.collection('sessions').add(data)
-    return jsonify({"message": "session added"}), 201
+
+    doc_ref.set(data, merge=True)
+    return jsonify({"id": session_id}), 201
 
 @app.route("/sessions/<session_id>", methods=["PUT"])
 @auth_required
 def modify_session(session_id):
     data = request.get_json()
-    doc_ref = db.collection("sessions").document(session_id)
-    doc = doc_ref.get()
-    if not doc.exists:
+
+    doc_ref, error = session_owned_by_caller(session_id)
+    if error:
+        return error
+
+    if not doc_ref.get().exists:
         return jsonify({"message": "document not found"}), 404
+
+    # userId is not the caller's to change, even on their own run.
+    data.pop("userId", None)
+
     if "video_url" in data:
         data["video_url"] = encrypt(data["video_url"])
     doc_ref.update(data)
@@ -127,6 +180,107 @@ def delete_session(session_id):
         return jsonify({"message": "document not found"}), 404
     doc_ref.delete()
     return jsonify({"message": "session successfully deleted"}), 200
+
+
+### SESSION VIDEO
+#
+# Storage only. Deliberately separate from /predict, which stores *and* runs
+# inference *and* answers as a chatbot: none of that belongs in a collection
+# path. Inference during collection contributes nothing to the dataset being
+# collected, and /predict files its output under `labels` — a model's guess
+# stored as a label, in a study about where labels legitimately come from.
+#
+# Uploaded in sequence-numbered parts as the recording is produced rather than
+# as one file at the end, for the same reason responses are: a participant who
+# quits mid-task is the case most worth keeping, and a single upload at the end
+# is exactly what such a run never reaches. Each part is named by its sequence
+# number, so a retried part overwrites itself instead of duplicating.
+
+def video_part_path(session_id, seq):
+    return os.path.join(VIDEO_DIR, f"{secure_filename(session_id)}.{int(seq):06d}.part")
+
+
+def video_final_path(session_id):
+    return os.path.join(VIDEO_DIR, f"{secure_filename(session_id)}.webm")
+
+
+def video_stored_path(session_id):
+    """What goes in the session document: relative to Backend/, POSIX separators."""
+    return f"{VIDEO_SUBDIR}/{secure_filename(session_id)}.webm".replace(os.sep, "/")
+
+
+@app.route("/sessions/<session_id>/video", methods=["POST"])
+@auth_required
+def add_session_video(session_id):
+    if "chunk" not in request.files:
+        return jsonify({"error": "no chunk provided"}), 400
+
+    doc_ref, error = session_owned_by_caller(session_id)
+    if error:
+        return error
+    if not doc_ref.get().exists:
+        return jsonify({"error": "session not found"}), 404
+
+    try:
+        seq = int(request.form.get("seq", ""))
+    except ValueError:
+        return jsonify({"error": "seq must be an integer"}), 400
+    if seq < 0:
+        return jsonify({"error": "seq must not be negative"}), 400
+
+    os.makedirs(VIDEO_DIR, exist_ok=True)
+    request.files["chunk"].save(video_part_path(session_id, seq))
+
+    # Written on the first part, not at finalize. A run that is abandoned never
+    # reaches finalize, so if the pointer were only written there, a partial
+    # recording would sit on disk with nothing in the database referring to it —
+    # findable only by scanning filenames. The destination is deterministic from
+    # the session id, so it can be recorded before the file exists.
+    if seq == 0:
+        doc_ref.set(
+            {"captures": {"videoPath": video_stored_path(session_id), "videoStatus": "partial"}},
+            merge=True,
+        )
+
+    return jsonify({"seq": seq}), 201
+
+
+@app.route("/sessions/<session_id>/video/finalize", methods=["POST"])
+@auth_required
+def finalize_session_video(session_id):
+    doc_ref, error = session_owned_by_caller(session_id)
+    if error:
+        return error
+    if not doc_ref.get().exists:
+        return jsonify({"error": "session not found"}), 404
+
+    safe_id = secure_filename(session_id)
+    parts = sorted(
+        p for p in os.listdir(VIDEO_DIR)
+        if p.startswith(f"{safe_id}.") and p.endswith(".part")
+    ) if os.path.isdir(VIDEO_DIR) else []
+
+    if not parts:
+        return jsonify({"error": "no parts to finalize"}), 404
+
+    # A MediaRecorder timeslice stream is only valid concatenated in order — the
+    # first part carries the container header and the rest are continuations.
+    # Sorting on the zero-padded sequence number is that order.
+    final_path = video_final_path(session_id)
+    with open(final_path, "wb") as out:
+        for part in parts:
+            with open(os.path.join(VIDEO_DIR, part), "rb") as chunk:
+                shutil.copyfileobj(chunk, out)
+
+    for part in parts:
+        os.remove(os.path.join(VIDEO_DIR, part))
+
+    stored = video_stored_path(session_id)
+    doc_ref.set(
+        {"captures": {"overallVideoUrl": stored, "videoPath": stored, "videoStatus": "complete"}},
+        merge=True,
+    )
+    return jsonify({"parts": len(parts), "path": stored}), 200
 
 
 ### SESSIONS RESPONSES
@@ -156,9 +310,30 @@ def get_response(session_id, response_id):
 @app.route("/sessions/<session_id>/responses", methods=["POST"])
 @auth_required
 def add_response(session_id):
+    # Accepts a client-supplied id so a retried write overwrites rather than
+    # duplicating. Responses are sent as they happen, over a connection that may
+    # drop mid-session, so a retry is a normal event and not an error path.
     data = request.get_json()
-    db.collection("sessions").document(session_id).collection("responses").add(data)
-    return jsonify({"message": "response added"}), 201
+
+    doc_ref, error = session_owned_by_caller(session_id)
+    if error:
+        return error
+
+    # A response may only be written into a session that already exists and
+    # belongs to the caller — otherwise anyone could file answers under another
+    # participant's run, or conjure a session by writing into its subcollection.
+    if not doc_ref.get().exists:
+        return jsonify({"error": "session not found"}), 404
+
+    responses = doc_ref.collection("responses")
+
+    response_id = data.pop("id", None)
+    if response_id:
+        responses.document(response_id).set(data)
+    else:
+        responses.add(data)
+
+    return jsonify({"id": response_id}), 201
 
 @app.route("/sessions/<session_id>/responses/<response_id>", methods=["PUT"])
 @auth_required
@@ -342,7 +517,13 @@ def get_probe_question(question_id):
 @auth_required
 def add_probe_question():
     data = request.get_json()
-    db.collection('probeQuestions').add(data)
+    question_id = data.pop("id", None)
+    if not question_id:
+        return jsonify({"error": "id is required"}), 400
+    doc_ref = db.collection('probeQuestions').document(question_id)
+    if doc_ref.get().exists:
+        return jsonify({"error": "probe question already exists"}), 409
+    doc_ref.set(data)
     return jsonify({"message": "probe question added"}), 201
 
 
@@ -375,8 +556,67 @@ def add_assessment_item():
     valid_stages = ["pretest", "posttest", "transfer"]
     if data.get("stage") not in valid_stages:
         return jsonify({"error": "stage must be pretest, posttest, or transfer"}), 400
-    db.collection("assessmentItems").add(data)
+    item_id = data.pop("id", None)
+    if not item_id:
+        return jsonify({"error": "id is required"}), 400
+    doc_ref = db.collection("assessmentItems").document(item_id)
+    if doc_ref.get().exists:
+        return jsonify({"error": "assessment item already exists"}), 409
+    doc_ref.set(data)
     return jsonify({"message": "assessment item added"}), 201
+
+
+### CASE STUDIES
+
+# A case study is the flawed research study a participant reads, and it is the
+# parent of the 4-5 task trials that critique it (D'Mello et al. 2014, Table 1).
+# The study text lives here so it is stored once, not repeated on every trial.
+
+@app.route("/caseStudies", methods=["GET"])
+def get_all_case_studies():
+    docs = db.collection("caseStudies").stream()
+    case_studies = []
+    for doc in docs:
+        data = doc.to_dict()
+        data["id"] = doc.id
+        case_studies.append(data)
+    return jsonify(case_studies), 200
+
+@app.route("/caseStudies/<case_study_id>", methods=["GET"])
+def get_case_study(case_study_id):
+    doc_ref = db.collection("caseStudies").document(case_study_id)
+    doc = doc_ref.get()
+    if not doc.exists:
+        return jsonify({"error": "case study not found"}), 404
+    data = doc.to_dict()
+    data["id"] = doc.id
+    return jsonify(data), 200
+
+@app.route("/caseStudies/<case_study_id>/trials", methods=["GET"])
+def get_case_study_trials(case_study_id):
+    docs = db.collection("taskTrials").where("caseStudyId", "==", case_study_id).stream()
+    trials = []
+    for doc in docs:
+        data = doc.to_dict()
+        data["id"] = doc.id
+        trials.append(data)
+    # Sorted here rather than with order_by so the query stays a single-field
+    # filter. Adding order_by("index") would require a composite Firestore index.
+    trials.sort(key=lambda t: t.get("index", 0))
+    return jsonify(trials), 200
+
+@app.route("/caseStudies", methods=["POST"])
+@auth_required
+def add_case_study():
+    data = request.get_json()
+    case_study_id = data.pop("id", None)
+    if not case_study_id:
+        return jsonify({"error": "id is required"}), 400
+    doc_ref = db.collection("caseStudies").document(case_study_id)
+    if doc_ref.get().exists:
+        return jsonify({"error": "case study already exists"}), 409
+    doc_ref.set(data)
+    return jsonify({"message": "case study added"}), 201
 
 
 ### TASK TRIALS
@@ -405,7 +645,18 @@ def get_task_trial(trial_id):
 @auth_required
 def add_task_trial():
     data = request.get_json()
-    db.collection("taskTrials").add(data)
+    trial_id = data.pop("id", None)
+    if not trial_id:
+        return jsonify({"error": "id is required"}), 400
+    case_study_id = data.get("caseStudyId")
+    if not case_study_id:
+        return jsonify({"error": "caseStudyId is required"}), 400
+    if not db.collection("caseStudies").document(case_study_id).get().exists:
+        return jsonify({"error": "caseStudyId does not refer to an existing case study"}), 400
+    doc_ref = db.collection("taskTrials").document(trial_id)
+    if doc_ref.get().exists:
+        return jsonify({"error": "task trial already exists"}), 409
+    doc_ref.set(data)
     return jsonify({"message": "task trial added"}), 201
 
 
@@ -491,7 +742,11 @@ def logout():
         return jsonify({"message": "logged out successfully"}), 200
     
 
-@app.route("predict", methods = ["POST"])
+# NOTE: the missing leading slash here raised ValueError at import, so the whole
+# server failed to start — not just this endpoint. Everything else about this
+# route is left as written; see /sessions/<id>/video for the study's own upload
+# path, which stores and does not infer.
+@app.route("/predict", methods = ["POST"])
 @auth_required
 def predict():
     if "video" not in request.files:

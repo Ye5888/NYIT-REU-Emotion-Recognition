@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import { PlaceholderScreen } from '@/components/experiment/placeholder-screen';
+import { setAuthToken } from '@/experiment/api';
 import { useEffect, useState } from 'react';
 
 export default function LoginScreen() {
@@ -86,7 +87,8 @@ export default function LoginScreen() {
 
             <Pressable style={styles.loginButton} onPress={async ()=>{
                 const user = await loginUser({username:username, password:password});
-                setUser(user ? user : null);                        
+                if (user?.token) setAuthToken(user.token);
+                setUser(user ? user : null);
               }}>
               <Text style={styles.loginButtonText}>
                 Log In
