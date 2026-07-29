@@ -1,49 +1,85 @@
+/**
+ * Consent — what we may keep, chosen before anything is captured.
+ *
+ * This screen sets intent only. It writes `session.consent.current` and makes no
+ * network call: the record of what actually left the device is written by the
+ * data path as data leaves, not by a participant pressing Continue here.
+ *
+ * The copy no longer says data is held until the end. It isn't — responses are
+ * sent as they are produced, and a session that is abandoned halfway has already
+ * sent what it collected. The end screen is a thank-you and an offer to widen
+ * this choice, never a gate and never a way to take something back.
+ */
 import { useRouter } from 'expo-router';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, ScrollView, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { PlaceholderScreen } from '@/components/experiment/placeholder-screen';
+import { ConsentChoices } from '@/components/experiment/consent-choices';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Spacing } from '@/constants/theme';
-import { DATA_CATEGORIES, DATA_CATEGORY_LABELS } from '@/experiment/config';
+import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { useSession } from '@/experiment/session';
+import { useTheme } from '@/hooks/use-theme';
 
 export default function ConsentScreen() {
   const router = useRouter();
+  const theme = useTheme();
+  const { session, update } = useSession();
 
   return (
-    <PlaceholderScreen
-      step="Consent"
-      title="What you'll share"
-      blurb="You choose, per item, what data to share (Cao's privacy-by-design). Nothing leaves your device until you submit at the end — and once submitted, an item can't be taken back, though you can always share more."
-      todos={[
-        'Real per-category toggles → writes session.consent.current',
-        'Explain capture vs submission (data leaves the device only on submit)',
-        'Category list below is rendered from config.ts (single source of truth)',
-      ]}
-      continueLabel="Continue"
-      onContinue={() => router.push('/pretest')}>
-      <View style={styles.list}>
-        {DATA_CATEGORIES.map((cat) => (
-          <ThemedView key={cat} type="backgroundElement" style={styles.row}>
-            <ThemedText type="small">{DATA_CATEGORY_LABELS[cat]}</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              (toggle — TBD)
-            </ThemedText>
-          </ThemedView>
-        ))}
-      </View>
-    </PlaceholderScreen>
+    <ThemedView style={styles.root}>
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.intro}>
+          <ThemedText type="small" themeColor="textSecondary">
+            Consent
+          </ThemedText>
+          <ThemedText type="title">What you&apos;re willing to share</ThemedText>
+          <ThemedText themeColor="textSecondary">
+            Your webcam runs during the task either way — it&apos;s how the task works. What you
+            choose here is how much of it we may keep, and it applies from the moment you begin.
+          </ThemedText>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <ConsentChoices
+            consent={session.consent}
+            onChange={(consent) => update({ consent })}
+          />
+
+          <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
+            You can change your mind and share more at the end. Anything already sent can&apos;t be
+            taken back.
+          </ThemedText>
+        </ScrollView>
+
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: theme.text }]}
+          onPress={() => router.push('/pretest')}
+          accessibilityRole="button">
+          <ThemedText style={[styles.buttonText, { color: theme.background }]}>Continue</ThemedText>
+        </TouchableOpacity>
+      </SafeAreaView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  list: { gap: Spacing.one, marginTop: Spacing.two },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.two,
+  root: { flex: 1 },
+  safe: {
+    flex: 1,
+    width: '100%',
+    maxWidth: MaxContentWidth,
+    alignSelf: 'center',
+    paddingHorizontal: Spacing.four,
+    paddingVertical: Spacing.four,
   },
+  intro: { gap: Spacing.two, paddingBottom: Spacing.three },
+  scroll: { gap: Spacing.three, paddingBottom: Spacing.three },
+  note: { paddingTop: Spacing.two },
+  button: {
+    paddingVertical: Spacing.three,
+    borderRadius: Spacing.three,
+    alignItems: 'center',
+  },
+  buttonText: { fontSize: 16, fontWeight: '600' },
 });

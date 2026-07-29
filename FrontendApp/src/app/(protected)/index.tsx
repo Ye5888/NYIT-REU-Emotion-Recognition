@@ -1,14 +1,21 @@
 /**
  * Welcome screen.
  *
- * Deliberately does not name the states under study. Telling participants up
- * front that we are measuring confusion or engagement primes exactly the
- * self-reports the study is trying to read cleanly — they arrive at the probes
- * already holding the word. What is disclosed here is what actually happens to
- * them: a learning task, video recording, and questions about the experience.
+ * Three things this copy must not do, all for the same reason — the task only
+ * works if the participant arrives without a frame already handed to them:
  *
- * This is in tension with IRB disclosure, which may require naming the
- * construct. If it must be named, the debrief is the cheaper place to do it.
+ *   - Do not say the studies are flawed. Finding that out is the task. Saying
+ *     it here converts discovery into confirmation and there is nothing left to
+ *     be confused by.
+ *   - Do not commit to a number of case studies. The protocol drives how many
+ *     there are; today it is one, the design goes to eight.
+ *   - Do not state a duration. It sets a clock against which people ration
+ *     effort, and it would be wrong the moment the protocol changes.
+ *
+ * It also does not name the states under study. Telling participants up front
+ * that we measure confusion or engagement primes exactly the self-reports the
+ * design is trying to read cleanly. This one is in tension with IRB disclosure;
+ * if the construct must be named, the debrief is the cheaper place for it.
  */
 import { useRouter } from 'expo-router';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
@@ -21,7 +28,8 @@ import { useTheme } from '@/hooks/use-theme';
 
 const STEPS = [
   'A few questions about what you already know',
-  'A camera check, then a short learning task with two on-screen partners',
+  'A camera check',
+  'The main task, with two on-screen partners',
   'Some questions about how the task went',
   'A last set of questions, and you are done',
 ];
@@ -37,10 +45,10 @@ export default function WelcomeScreen() {
           <ThemedText type="small" themeColor="textSecondary">
             Welcome
           </ThemedText>
-          <ThemedText type="title">A short study about learning</ThemedText>
+          <ThemedText type="title">A study about learning</ThemedText>
           <ThemedText themeColor="textSecondary">
-            You will work through a flawed research study with two on-screen partners and decide
-            what you make of it. It takes about twenty minutes.
+            You will read about some published research and talk it over with two on-screen
+            partners, deciding for yourself what you make of it.
           </ThemedText>
 
           <ThemedView type="backgroundElement" style={styles.card}>

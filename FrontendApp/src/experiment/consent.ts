@@ -6,7 +6,7 @@
  * `submitted ⊆ current`, which makes the illegal state (un-submitting) simply
  * unreachable rather than merely discouraged.
  */
-import type { DataCategory } from './config';
+import { VIDEO_TIERS, type DataCategory } from './config';
 import type { ConsentState, SubmissionStatus } from './types';
 
 export function emptyConsent(): ConsentState {
@@ -39,6 +39,28 @@ export function setConsent(c: ConsentState, cat: DataCategory, on: boolean): Con
 export function submit(c: ConsentState, cats?: DataCategory[]): ConsentState {
   const toSend = (cats ?? pendingCategories(c)).filter((cat) => c.current.includes(cat));
   return { ...c, submitted: Array.from(new Set([...c.submitted, ...toSend])) };
+}
+
+// --- The video ladder --------------------------------------------------------
+//
+// VIDEO_TIERS is ordered least to most revealing and each rung implies those
+// below it, so the chosen rung is just the highest one present. Both helpers go
+// through setConsent, which means the ratchet is enforced for free: a rung that
+// has already been submitted cannot be stepped back down.
+
+/** Index into VIDEO_TIERS, or -1 for "nothing from the recording". */
+export function videoTier(c: ConsentState): number {
+  return VIDEO_TIERS.reduce((highest, tier, i) => (c.current.includes(tier) ? i : highest), -1);
+}
+
+/** The lowest rung still selectable — anything submitted is a floor. */
+export function videoTierFloor(c: ConsentState): number {
+  return VIDEO_TIERS.reduce((highest, tier, i) => (c.submitted.includes(tier) ? i : highest), -1);
+}
+
+/** Move to a rung, turning on everything below it and off everything above. */
+export function setVideoTier(c: ConsentState, tierIndex: number): ConsentState {
+  return VIDEO_TIERS.reduce((acc, tier, i) => setConsent(acc, tier, i <= tierIndex), c);
 }
 
 /** Derived status — computed from the two sets, never stored. */

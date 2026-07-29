@@ -26,6 +26,14 @@ interface CameraContextValue {
   /** Start recording; returns the epoch ms to measure offsets from, or null. */
   beginRecording: () => number | null;
   stopRecording: () => Promise<Blob | null>;
+  /**
+   * Close the camera and turn the indicator light off.
+   *
+   * Distinct from `stopRecording`, and both are needed: stopping the recorder
+   * ends the capture, but the browser holds the device — and keeps the light on
+   * — until the stream's tracks are stopped.
+   */
+  release: () => void;
   getStream: () => unknown | null;
 }
 
@@ -75,6 +83,11 @@ export function CameraProvider({ children }: { children: ReactNode }) {
     return blob;
   }, []);
 
+  const release = useCallback(() => {
+    cameraController.release();
+    setStatus('stopped');
+  }, []);
+
   const value = useMemo<CameraContextValue>(
     () => ({
       status,
@@ -84,9 +97,10 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       acquire,
       beginRecording,
       stopRecording,
+      release,
       getStream: () => cameraController.getStream(),
     }),
-    [status, failure, message, acquire, beginRecording, stopRecording],
+    [status, failure, message, acquire, beginRecording, stopRecording, release],
   );
 
   return <CameraContext.Provider value={value}>{children}</CameraContext.Provider>;
