@@ -93,6 +93,29 @@ def get_all_sessions():
         sessions.append(data)
     return jsonify(sessions), 200
 
+def session_owned_by_caller(session_id):
+    """
+    (doc_ref, error_response) for a session the caller is allowed to write.
+
+    Session ids are chosen by the client so that writes can be idempotent, which
+    means they are also guessable — and /sessions lists them. Without this check
+    any authenticated user could address another participant's run: overwrite
+    their consent, file answers under their id, or (since userId is stamped from
+    the caller's token) reassign the run to themselves. Ownership is checked
+    rather than forbidding overwrite outright, because a repeated write from the
+    run's own owner is a retry, not an attack.
+    """
+    doc_ref = db.collection("sessions").document(session_id)
+    snapshot = doc_ref.get()
+
+    if snapshot.exists:
+        owner = (snapshot.to_dict() or {}).get("userId")
+        if owner != g.current_user_id:
+            return None, (jsonify({"error": "forbidden"}), 403)
+
+    return doc_ref, None
+
+
 @app.route("/sessions", methods=["POST"])
 @auth_required
 def add_session():
@@ -106,6 +129,10 @@ def add_session():
     if not session_id:
         return jsonify({"error": "id is required"}), 400
 
+    doc_ref, error = session_owned_by_caller(session_id)
+    if error:
+        return error
+
     # Stamped from the token, never taken from the body — a client should not be
     # able to file a run under someone else's account.
     data["userId"] = g.current_user_id
@@ -113,17 +140,24 @@ def add_session():
     if "video_url" in data:
         data["video_url"] = encrypt(data["video_url"])
 
-    db.collection("sessions").document(session_id).set(data, merge=True)
+    doc_ref.set(data, merge=True)
     return jsonify({"id": session_id}), 201
 
 @app.route("/sessions/<session_id>", methods=["PUT"])
 @auth_required
 def modify_session(session_id):
     data = request.get_json()
-    doc_ref = db.collection("sessions").document(session_id)
-    doc = doc_ref.get()
-    if not doc.exists:
+
+    doc_ref, error = session_owned_by_caller(session_id)
+    if error:
+        return error
+
+    if not doc_ref.get().exists:
         return jsonify({"message": "document not found"}), 404
+
+    # userId is not the caller's to change, even on their own run.
+    data.pop("userId", None)
+
     if "video_url" in data:
         data["video_url"] = encrypt(data["video_url"])
     doc_ref.update(data)
@@ -171,7 +205,18 @@ def add_response(session_id):
     # duplicating. Responses are sent as they happen, over a connection that may
     # drop mid-session, so a retry is a normal event and not an error path.
     data = request.get_json()
-    responses = db.collection("sessions").document(session_id).collection("responses")
+
+    doc_ref, error = session_owned_by_caller(session_id)
+    if error:
+        return error
+
+    # A response may only be written into a session that already exists and
+    # belongs to the caller — otherwise anyone could file answers under another
+    # participant's run, or conjure a session by writing into its subcollection.
+    if not doc_ref.get().exists:
+        return jsonify({"error": "session not found"}), 404
+
+    responses = doc_ref.collection("responses")
 
     response_id = data.pop("id", None)
     if response_id:
