@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 
 import { api } from './api';
 import { resolveAssignment } from './assignment';
+import { persist } from './persistence';
 import { useSession } from './session';
 import type { CaseStudy, ProbeQuestion, TaskTrial } from './types';
 
@@ -43,6 +44,10 @@ export function useExperimentData() {
 
         const byId = Object.fromEntries(probeList.map((q) => [q.id, q]));
         update({ assignment });
+        // The realized draw is persisted rather than recomputed: the seed makes
+        // it reproducible, but only against a protocol that has not changed
+        // since. Storing it means the run stays interpretable either way.
+        persist(session, { kind: 'sessionPatch', patch: { assignment } });
         setData({
           caseStudy,
           trials,

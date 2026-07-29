@@ -2,55 +2,98 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nyit-reu/schema/runs.schema.json",
   "title": "Run-side document shapes",
-
   "$defs": {
     "docId": {
       "type": "string",
       "pattern": "^[a-zA-Z][a-zA-Z0-9_]*$"
     },
-
-    "condition": { "enum": ["TT", "TF", "FT", "FF"] },
-
-    "probeTiming": { "enum": ["immediate", "retrospective"] },
-
-    "dataCategory": {
-      "enum": ["webcam", "audio", "behavioralTraces", "modelParams"]
+    "condition": {
+      "enum": [
+        "TT",
+        "TF",
+        "FT",
+        "FF"
+      ]
     },
-
+    "probeTiming": {
+      "enum": [
+        "immediate",
+        "retrospective"
+      ]
+    },
+    "dataCategory": {
+      "enum": [
+        "modelUpdates",
+        "facialMetrics",
+        "rawVideo"
+      ]
+    },
     "session": {
       "type": "object",
-      "required": ["userId", "protocolVersion", "seed", "consent", "assignment", "status", "startedAt"],
+      "required": [
+        "userId",
+        "protocolVersion",
+        "seed",
+        "consent",
+        "assignment",
+        "status",
+        "startedAt"
+      ],
       "additionalProperties": false,
       "properties": {
-        "userId": { "type": "string", "minLength": 1 },
-        "protocolVersion": { "type": "string", "pattern": "^v[0-9]+$" },
-        "seed": { "type": "integer", "minimum": 0 },
+        "userId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "protocolVersion": {
+          "type": "string",
+          "pattern": "^v[0-9]+$"
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0
+        },
         "consent": {
           "type": "object",
-          "required": ["current", "submitted"],
+          "required": [
+            "current",
+            "submitted"
+          ],
           "additionalProperties": false,
           "properties": {
             "current": {
               "type": "array",
-              "items": { "$ref": "#/$defs/dataCategory" },
+              "items": {
+                "$ref": "#/$defs/dataCategory"
+              },
               "uniqueItems": true
             },
             "submitted": {
               "type": "array",
-              "items": { "$ref": "#/$defs/dataCategory" },
+              "items": {
+                "$ref": "#/$defs/dataCategory"
+              },
               "uniqueItems": true
             }
           }
         },
         "assignment": {
           "type": "object",
-          "required": ["probeTiming", "probeOrder", "caseStudies"],
+          "required": [
+            "probeTiming",
+            "probeOrder",
+            "caseStudies"
+          ],
           "additionalProperties": false,
           "properties": {
-            "probeTiming": { "$ref": "#/$defs/probeTiming" },
+            "probeTiming": {
+              "$ref": "#/$defs/probeTiming"
+            },
             "probeOrder": {
               "type": "array",
-              "items": { "$ref": "#/$defs/docId" },
+              "items": {
+                "$ref": "#/$defs/docId"
+              },
               "minItems": 1,
               "uniqueItems": true
             },
@@ -59,76 +102,225 @@
               "minItems": 1,
               "items": {
                 "type": "object",
-                "required": ["caseStudyId", "condition"],
+                "required": [
+                  "caseStudyId",
+                  "condition"
+                ],
                 "additionalProperties": false,
                 "properties": {
-                  "caseStudyId": { "$ref": "#/$defs/docId" },
-                  "condition": { "$ref": "#/$defs/condition" }
+                  "caseStudyId": {
+                    "$ref": "#/$defs/docId"
+                  },
+                  "condition": {
+                    "$ref": "#/$defs/condition"
+                  }
                 }
               }
             }
           }
         },
-        "status": { "enum": ["inProgress", "complete", "abandoned"] },
-        "startedAt": { "type": "integer" },
-        "completedAt": { "type": "integer" },
+        "status": {
+          "enum": [
+            "inProgress",
+            "complete",
+            "abandoned"
+          ]
+        },
+        "startedAt": {
+          "type": "integer"
+        },
+        "completedAt": {
+          "type": "integer"
+        },
         "captures": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "overallVideoUrl": { "type": "string" }
+            "overallVideoUrl": {
+              "type": "string"
+            },
+            "recordingStartedAt": {
+              "type": "integer"
+            }
+          }
+        },
+        "marks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "refId",
+              "at"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "kind": {
+                "enum": [
+                  "trialOnset",
+                  "probeOnset"
+                ]
+              },
+              "refId": {
+                "$ref": "#/$defs/docId"
+              },
+              "at": {
+                "type": "integer"
+              }
+            }
           }
         }
       }
     },
-
     "response": {
       "type": "object",
-      "required": ["stage", "itemId", "value", "respondedAt"],
+      "required": [
+        "stage",
+        "itemId",
+        "value",
+        "respondedAt"
+      ],
       "additionalProperties": false,
       "properties": {
-        "stage": { "enum": ["pretest", "task", "probe", "posttest", "transfer"] },
-        "itemId": { "$ref": "#/$defs/docId" },
-        "caseStudyId": { "$ref": "#/$defs/docId" },
-        "trialId": { "$ref": "#/$defs/docId" },
-        "timing": { "$ref": "#/$defs/probeTiming" },
-        "value": { "type": ["string", "number"] },
-        "correct": { "type": "boolean" },
-        "videoSegmentUrl": { "type": "string" },
-        "respondedAt": { "type": "integer" }
+        "stage": {
+          "enum": [
+            "pretest",
+            "task",
+            "probe",
+            "posttest",
+            "transfer"
+          ]
+        },
+        "itemId": {
+          "$ref": "#/$defs/docId"
+        },
+        "caseStudyId": {
+          "$ref": "#/$defs/docId"
+        },
+        "trialId": {
+          "$ref": "#/$defs/docId"
+        },
+        "timing": {
+          "$ref": "#/$defs/probeTiming"
+        },
+        "value": {
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "correct": {
+          "type": "boolean"
+        },
+        "videoSegmentUrl": {
+          "type": "string"
+        },
+        "respondedAt": {
+          "type": "integer"
+        }
       },
       "allOf": [
         {
-          "if": { "properties": { "stage": { "const": "task" } }, "required": ["stage"] },
-          "then": { "required": ["trialId", "caseStudyId", "correct"] }
-        },
-        {
-          "if": { "properties": { "stage": { "const": "probe" } }, "required": ["stage"] },
-          "then": { "required": ["trialId", "timing"] }
+          "if": {
+            "properties": {
+              "stage": {
+                "const": "task"
+              }
+            },
+            "required": [
+              "stage"
+            ]
+          },
+          "then": {
+            "required": [
+              "trialId",
+              "caseStudyId",
+              "correct"
+            ]
+          }
         },
         {
           "if": {
-            "properties": { "stage": { "enum": ["pretest", "posttest", "transfer"] } },
-            "required": ["stage"]
+            "properties": {
+              "stage": {
+                "const": "probe"
+              }
+            },
+            "required": [
+              "stage"
+            ]
           },
-          "then": { "required": ["correct"] }
+          "then": {
+            "required": [
+              "caseStudyId",
+              "timing"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "stage": {
+                "enum": [
+                  "pretest",
+                  "posttest",
+                  "transfer"
+                ]
+              }
+            },
+            "required": [
+              "stage"
+            ]
+          },
+          "then": {
+            "required": [
+              "correct"
+            ]
+          }
         }
       ]
     },
-
     "label": {
       "type": "object",
-      "required": ["trialId", "videoSegmentUrl", "derivedLabel", "sourceProbeId", "labeledAt"],
+      "required": [
+        "trialId",
+        "videoSegmentUrl",
+        "derivedLabel",
+        "sourceProbeId",
+        "labeledAt"
+      ],
       "additionalProperties": false,
       "properties": {
-        "trialId": { "$ref": "#/$defs/docId" },
-        "caseStudyId": { "$ref": "#/$defs/docId" },
-        "videoSegmentUrl": { "type": "string" },
-        "derivedLabel": { "type": "string", "minLength": 1 },
-        "sourceProbeId": { "$ref": "#/$defs/docId" },
-        "sourceValue": { "type": ["string", "number"] },
-        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-        "labeledAt": { "type": "integer" }
+        "trialId": {
+          "$ref": "#/$defs/docId"
+        },
+        "caseStudyId": {
+          "$ref": "#/$defs/docId"
+        },
+        "videoSegmentUrl": {
+          "type": "string"
+        },
+        "derivedLabel": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sourceProbeId": {
+          "$ref": "#/$defs/docId"
+        },
+        "sourceValue": {
+          "type": [
+            "string",
+            "number"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "labeledAt": {
+          "type": "integer"
+        }
       }
     }
   }

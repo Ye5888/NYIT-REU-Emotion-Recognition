@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, g, jsonify, request
 from flask_cors import CORS
 from firebase_admin import firestore
 from predict import predict_emotion
@@ -96,11 +96,25 @@ def get_all_sessions():
 @app.route("/sessions", methods=["POST"])
 @auth_required
 def add_session():
+    # The client names the session, rather than Firestore generating an id the
+    # client never learns: responses are posted to /sessions/<id>/responses, so
+    # the app has to know the id before it can write anything. The id is derived
+    # from the run's seed, so it is reproducible, and set() rather than add()
+    # makes a retried create idempotent instead of leaving a duplicate run.
     data = request.get_json()
+    session_id = data.pop("id", None)
+    if not session_id:
+        return jsonify({"error": "id is required"}), 400
+
+    # Stamped from the token, never taken from the body — a client should not be
+    # able to file a run under someone else's account.
+    data["userId"] = g.current_user_id
+
     if "video_url" in data:
         data["video_url"] = encrypt(data["video_url"])
-    db.collection('sessions').add(data)
-    return jsonify({"message": "session added"}), 201
+
+    db.collection("sessions").document(session_id).set(data, merge=True)
+    return jsonify({"id": session_id}), 201
 
 @app.route("/sessions/<session_id>", methods=["PUT"])
 @auth_required
@@ -153,9 +167,19 @@ def get_response(session_id, response_id):
 @app.route("/sessions/<session_id>/responses", methods=["POST"])
 @auth_required
 def add_response(session_id):
+    # Accepts a client-supplied id so a retried write overwrites rather than
+    # duplicating. Responses are sent as they happen, over a connection that may
+    # drop mid-session, so a retry is a normal event and not an error path.
     data = request.get_json()
-    db.collection("sessions").document(session_id).collection("responses").add(data)
-    return jsonify({"message": "response added"}), 201
+    responses = db.collection("sessions").document(session_id).collection("responses")
+
+    response_id = data.pop("id", None)
+    if response_id:
+        responses.document(response_id).set(data)
+    else:
+        responses.add(data)
+
+    return jsonify({"id": response_id}), 201
 
 @app.route("/sessions/<session_id>/responses/<response_id>", methods=["PUT"])
 @auth_required

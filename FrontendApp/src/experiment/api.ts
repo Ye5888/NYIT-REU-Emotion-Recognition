@@ -7,6 +7,8 @@ import type {
   CaseStudy,
   ProbeQuestion,
   Protocol,
+  ResponseDoc,
+  SessionDoc,
   TaskTrial,
 } from './types';
 
@@ -43,12 +45,39 @@ async function get<T>(path: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function send<T>(method: 'POST' | 'PUT', path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new ApiError(text || res.statusText, res.status, path);
+  }
+
+  return res.json() as Promise<T>;
+}
+
 export const api = {
   getProtocol: (version: string) => get<Protocol>(`/protocols/${version}`),
   getCaseStudy: (id: string) => get<CaseStudy>(`/caseStudies/${id}`),
   getCaseStudyTrials: (id: string) => get<TaskTrial[]>(`/caseStudies/${id}/trials`),
   getProbeQuestions: () => get<ProbeQuestion[]>('/probe_questions'),
   getAssessmentItems: () => get<AssessmentItem[]>('/assessmentItems'),
+
+  // --- Run writes. Both take a client-chosen id and are idempotent: a retried
+  // write overwrites its own document instead of leaving a duplicate run.
+  createSession: (body: SessionDoc & { id: string }) =>
+    send<{ id: string }>('POST', '/sessions', body),
+  patchSession: (sessionId: string, patch: Partial<SessionDoc>) =>
+    send<{ message: string }>('PUT', `/sessions/${sessionId}`, patch),
+  putResponse: (sessionId: string, body: ResponseDoc & { id: string }) =>
+    send<{ id: string }>('POST', `/sessions/${sessionId}/responses`, body),
 };
 
 export async function login(username: string, password: string): Promise<string> {

@@ -22,6 +22,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { SHOW_CAMERA_IN_TASK } from '@/experiment/config';
+import { persist } from '@/experiment/persistence';
 import { useSession } from '@/experiment/session';
 import { useCaptureMarks } from '@/experiment/use-capture-marks';
 import { useExperimentData } from '@/experiment/use-experiment-data';
@@ -123,20 +124,17 @@ export default function TaskScreen() {
   }
 
   function submitAnswer(value: string) {
+    const response = {
+      trialId: trial!.id,
+      caseStudyId: trial!.caseStudyId,
+      value,
+      correct: value === trial!.correctKey,
+      respondedAt: Date.now(),
+    };
+
     setAnswers((a) => ({ ...a, [trial!.id]: value }));
-    update((s) => ({
-      ...s,
-      forcedChoices: [
-        ...s.forcedChoices,
-        {
-          trialId: trial!.id,
-          caseStudyId: trial!.caseStudyId,
-          value,
-          correct: value === trial!.correctKey,
-          respondedAt: Date.now(),
-        },
-      ],
-    }));
+    update((s) => ({ ...s, forcedChoices: [...s.forcedChoices, response] }));
+    persist(session, { kind: 'forcedChoices', responses: [response] });
 
     if (trialIndex + 1 < data!.trials.length) {
       setTrialIndex((i) => i + 1);
@@ -150,18 +148,15 @@ export default function TaskScreen() {
   }
 
   function recordProbe(probeAnswers: ProbeAnswers) {
-    update((s) => ({
-      ...s,
-      probes: [
-        ...s.probes,
-        ...Object.entries(probeAnswers).map(([questionId, value]) => ({
-          caseStudyId: data!.caseStudy.id,
-          questionId,
-          value,
-          respondedAt: Date.now(),
-        })),
-      ],
+    const responses = Object.entries(probeAnswers).map(([questionId, value]) => ({
+      caseStudyId: data!.caseStudy.id,
+      questionId,
+      value,
+      respondedAt: Date.now(),
     }));
+
+    update((s) => ({ ...s, probes: [...s.probes, ...responses] }));
+    persist(session, { kind: 'probes', timing: 'immediate', responses });
     setProbing(false);
     router.push('/posttest');
   }

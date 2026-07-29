@@ -174,6 +174,42 @@ export interface SessionState {
   marks: CaptureMark[];
 }
 
+// --- Wire shapes -------------------------------------------------------------
+//
+// What the backend stores, as against what the app holds. These mirror
+// Backend/schema/runs.schema.json — keep the two in sync.
+//
+// The app's SessionState is not the stored document: it carries UI-side detail
+// the run has no use for, and the stored document carries lifecycle fields
+// (status, completedAt, userId) the app does not own. `userId` in particular is
+// stamped by the server from the auth token and never sent by the client.
+
+export type SessionStatus = 'inProgress' | 'complete' | 'abandoned';
+
+export interface SessionDoc {
+  protocolVersion: string;
+  seed: number;
+  consent: ConsentState;
+  assignment: Assignment;
+  status: SessionStatus;
+  startedAt: number;
+  completedAt?: number;
+  captures?: { overallVideoUrl?: string; recordingStartedAt?: number };
+  marks?: CaptureMark[];
+}
+
+/** One answer, flattened across the three kinds the app collects. */
+export interface ResponseDoc {
+  stage: 'pretest' | 'task' | 'probe' | 'posttest' | 'transfer';
+  itemId: string;
+  caseStudyId?: string;
+  trialId?: string;
+  timing?: ProbeTiming;
+  value: string | number;
+  correct?: boolean;
+  respondedAt: number;
+}
+
 export function utteranceFor(assertion: Assertion, condition: Condition): string {
   return assertion.variants[condition];
 }

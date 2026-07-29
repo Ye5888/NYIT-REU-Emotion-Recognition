@@ -23,13 +23,14 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useCamera } from '@/experiment/camera';
+import { persist } from '@/experiment/persistence';
 import { useSession } from '@/experiment/session';
 import { useTheme } from '@/hooks/use-theme';
 
 export default function CameraCheckScreen() {
   const router = useRouter();
   const theme = useTheme();
-  const { update } = useSession();
+  const { session, update } = useSession();
   const { status, message, acquire, beginRecording } = useCamera();
 
   useEffect(() => {
@@ -39,6 +40,11 @@ export default function CameraCheckScreen() {
   function start() {
     const startedAt = beginRecording();
     update({ recordingStartedAt: startedAt });
+    // The clock every other timestamp is measured against — worth persisting the
+    // moment it exists rather than at the end, since a run may not reach the end.
+    if (startedAt) {
+      persist(session, { kind: 'sessionPatch', patch: { captures: { recordingStartedAt: startedAt } } });
+    }
     router.push('/task');
   }
 

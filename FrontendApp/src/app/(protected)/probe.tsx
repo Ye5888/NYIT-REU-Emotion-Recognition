@@ -14,6 +14,7 @@ import { Probe, type ProbeAnswers } from '@/components/experiment/probe';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { persist } from '@/experiment/persistence';
 import { useSession } from '@/experiment/session';
 import { useCaptureMarks } from '@/experiment/use-capture-marks';
 import { useExperimentData } from '@/experiment/use-experiment-data';
@@ -54,18 +55,15 @@ export default function RetrospectiveProbeScreen() {
   const caseStudy = caseStudies[index];
 
   function record(answers: ProbeAnswers) {
-    update((s) => ({
-      ...s,
-      probes: [
-        ...s.probes,
-        ...Object.entries(answers).map(([questionId, value]) => ({
-          caseStudyId: caseStudy.id,
-          questionId,
-          value,
-          respondedAt: Date.now(),
-        })),
-      ],
+    const responses = Object.entries(answers).map(([questionId, value]) => ({
+      caseStudyId: caseStudy.id,
+      questionId,
+      value,
+      respondedAt: Date.now(),
     }));
+
+    update((s) => ({ ...s, probes: [...s.probes, ...responses] }));
+    persist(session, { kind: 'probes', timing: 'retrospective', responses });
 
     if (index + 1 < caseStudies.length) setIndex((i) => i + 1);
     else router.push('/posttest');

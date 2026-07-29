@@ -45,7 +45,7 @@ export function AssessmentStageScreen({
 
   function record(responses: AssessmentResponse[]) {
     update((s) => ({ ...s, assessments: [...s.assessments, ...responses] }));
-    persist(session, { kind: 'assessments', stage, responses });
+    persist(session, { kind: 'assessments', responses });
     router.push(next);
   }
 

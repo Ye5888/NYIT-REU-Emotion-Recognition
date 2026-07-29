@@ -47,12 +47,24 @@ export default function DoneScreen() {
   }, [stopRecording, release]);
 
   // Reaching this screen *is* the fact that the consented data was sent, so the
-  // record catches up with what already happened. Guarded because it must not
-  // re-run over the widening the participant may do below.
+  // record catches up with what already happened, and the run closes: `status`
+  // moves off `inProgress`, which is what distinguishes a finished session from
+  // an abandoned one. Guarded because it must not re-run over the widening the
+  // participant may do below.
   useEffect(() => {
     if (settled.current) return;
     settled.current = true;
-    update((s) => ({ ...s, consent: submit(s.consent) }));
+
+    // Computed outside the updater: a state updater must stay pure, or React
+    // calling it twice would enqueue the write twice.
+    const consent = submit(session.consent);
+    update({ consent });
+    persist(session, {
+      kind: 'sessionPatch',
+      patch: { consent, status: 'complete', completedAt: Date.now(), marks: session.marks },
+    });
+    // Runs once on arrival; `session` is read for its value at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [update]);
 
   const shared = session.consent.submitted;
@@ -61,8 +73,9 @@ export default function DoneScreen() {
 
   function shareMore() {
     if (pending.length === 0) return;
-    update((s) => ({ ...s, consent: submit(s.consent) }));
-    persist(session, { kind: 'consent', added: pending });
+    const consent = submit(session.consent);
+    update({ consent });
+    persist(session, { kind: 'sessionPatch', patch: { consent } });
   }
 
   return (

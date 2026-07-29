@@ -23,6 +23,7 @@ import { ConsentChoices } from '@/components/experiment/consent-choices';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
+import { persist } from '@/experiment/persistence';
 import { useSession } from '@/experiment/session';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -30,6 +31,14 @@ export default function ConsentScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { session, update } = useSession();
+
+  // The session document is created here, not at the first response: this is the
+  // earliest point where the participant has agreed to anything, and a run that
+  // exists from the outset is one whose abandonment is visible later.
+  function begin() {
+    persist(session, { kind: 'sessionStart' });
+    router.push('/pretest');
+  }
 
   return (
     <ThemedView style={styles.root}>
@@ -61,7 +70,7 @@ export default function ConsentScreen() {
 
         <TouchableOpacity
           style={[styles.button, { backgroundColor: theme.text }]}
-          onPress={() => router.push('/pretest')}
+          onPress={begin}
           accessibilityRole="button">
           <ThemedText style={[styles.buttonText, { color: theme.background }]}>Continue</ThemedText>
         </TouchableOpacity>
