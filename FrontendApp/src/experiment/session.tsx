@@ -6,7 +6,7 @@
  * protocol has loaded (see use-experiment-data). Everything before the task
  * step runs fine without it.
  */
-import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 
 import { emptyConsent } from './consent';
 import type { SessionState } from './types';
@@ -46,14 +46,23 @@ const SessionContext = createContext<SessionContextValue | null>(null);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionState>(createSession);
 
+  // `update` and `reset` must keep a stable identity across renders. They are
+  // dependencies of effects that write to the session (capture marks, the
+  // end-of-session consent settle); if they were rebuilt whenever `session`
+  // changed, each write would change their identity, re-fire the effect, and
+  // write again — an unbreakable loop. Neither closes over `session`, so
+  // there is nothing for them to go stale against.
+  const update = useCallback(
+    (patch: SessionPatch) =>
+      setSession((s) => (typeof patch === 'function' ? patch(s) : { ...s, ...patch })),
+    [],
+  );
+
+  const reset = useCallback(() => setSession(createSession()), []);
+
   const value = useMemo<SessionContextValue>(
-    () => ({
-      session,
-      update: (patch) =>
-        setSession((s) => (typeof patch === 'function' ? patch(s) : { ...s, ...patch })),
-      reset: () => setSession(createSession()),
-    }),
-    [session],
+    () => ({ session, update, reset }),
+    [session, update, reset],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

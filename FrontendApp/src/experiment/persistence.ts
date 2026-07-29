@@ -12,6 +12,7 @@
  * single place its stage's data leaves the device, so turning persistence on is
  * a change inside this file and nowhere else.
  */
+import type { DataCategory } from './config';
 import type { AssessmentResponse, ForcedChoiceResponse, ProbeResponse, SessionState } from './types';
 
 /** One flush's worth of run data, tagged by which screen produced it. */
@@ -19,7 +20,9 @@ export type RunWrite =
   | { kind: 'session'; consentGivenAt: number }
   | { kind: 'assessments'; stage: AssessmentResponse['stage']; responses: AssessmentResponse[] }
   | { kind: 'probes'; caseStudyId: string; responses: ProbeResponse[] }
-  | { kind: 'forcedChoices'; caseStudyId: string; responses: ForcedChoiceResponse[] };
+  | { kind: 'forcedChoices'; caseStudyId: string; responses: ForcedChoiceResponse[] }
+  /** Widened at the end of the session — the ratchet only ever turns one way. */
+  | { kind: 'consent'; added: DataCategory[] };
 
 /**
  * Hand a completed unit of run data to the backend.
