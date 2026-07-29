@@ -31,28 +31,37 @@ export const SPEAKER_ROLES = {
 
 // --- Granular data sharing (Cao's privacy-by-design) --------------------------
 //
-// These were four independent toggles. They are not independent: model updates,
-// facial measurements and the raw recording are all derived from the same
-// capture, in that order of revealingness. Consenting to the video necessarily
-// consents to what can be computed from it, so the video side is a ladder —
-// each rung includes the ones below it — not a set of checkboxes.
+// This is not a question of whether to share. A session that contributes
+// nothing is not worth anyone's twenty minutes, and the study cannot run on it.
+// Model updates and the interaction record (answers, timings) are collected
+// unconditionally and are not offered here.
 //
-// Representing it as a nested set keeps the existing ConsentState machinery
-// intact: sharing more means adding a higher rung, and the ratchet in consent.ts
+// What the participant chooses is *how much processing happens on their own
+// device before anything leaves it*. Every rung produces the same model
+// updates; they differ in how raw the material is when it goes:
+//
+//   modelUpdates   everything computed here; only the numbers leave
+//   facialMetrics  the measurements leave, the footage does not
+//   rawVideo       the recording itself leaves
+//
+// Ordered least to most revealing, each rung implying those below it — raw video
+// is sufficient to derive the measurements, which are sufficient to derive the
+// updates. Representing it as a nested set keeps the ConsentState machinery
+// intact: choosing a deeper rung adds to `current`, and the ratchet in consent.ts
 // already refuses to remove anything submitted.
 //
-// `audio` is gone. We capture video only, and asking consent for something that
-// is never collected is worse than not asking. Put it back when audio exists.
+// `audio` is gone: we capture video only, and asking consent for something never
+// collected is worse than not asking. Put it back when audio exists.
 
-/** Video-derived disclosure, least to most revealing. Each rung implies those below it. */
+/** Processing depth, least to most revealing. Each rung implies those below it. */
 export const VIDEO_TIERS = ['modelUpdates', 'facialMetrics', 'rawVideo'] as const;
 
-/** Not derived from the recording, so it moves independently of the ladder. */
-export const INDEPENDENT_CATEGORIES = ['behavioralTraces'] as const;
+/** The floor. Every session shares at least this much, so it is never offered as a choice. */
+export const MINIMUM_TIER = 0;
 
-export const DATA_CATEGORIES = [...VIDEO_TIERS, ...INDEPENDENT_CATEGORIES] as const;
+export const DATA_CATEGORIES = VIDEO_TIERS;
 export type DataCategory = (typeof DATA_CATEGORIES)[number];
-export type VideoTier = (typeof VIDEO_TIERS)[number];
+export type VideoTier = DataCategory;
 
 /**
  * Demo affordance: a button during the task that reveals the live camera feed,
@@ -66,18 +75,16 @@ export type VideoTier = (typeof VIDEO_TIERS)[number];
 export const SHOW_CAMERA_IN_TASK = true;
 
 export const DATA_CATEGORY_LABELS: Record<DataCategory, string> = {
-  modelUpdates: 'Model updates only',
-  facialMetrics: 'Facial measurements',
-  rawVideo: 'The video recording',
-  behavioralTraces: 'Your answers and timings',
+  modelUpdates: 'Keep everything on my device',
+  facialMetrics: 'Send measurements, not video',
+  rawVideo: 'Send the video',
 };
 
 /** What each option means in the participant's terms, not ours. */
 export const DATA_CATEGORY_BLURBS: Record<DataCategory, string> = {
   modelUpdates:
-    'Your video is processed on this device and only the resulting numbers are sent. No footage and no measurements of your face leave.',
+    'Your video is analysed here and deleted. Only the results of the analysis are sent — no footage, and nothing describing your face.',
   facialMetrics:
-    'Measurements describing how your face moved — no video, and not enough to rebuild it.',
-  rawVideo: 'The recording itself, showing your face.',
-  behavioralTraces: 'What you answered and how long you took. Nothing from the camera.',
+    'Numbers describing how your face moved are sent; the footage stays here and is deleted.',
+  rawVideo: 'The recording is sent as it is. Most useful to the research, and the least private.',
 };

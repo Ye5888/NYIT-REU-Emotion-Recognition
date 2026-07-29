@@ -1,14 +1,19 @@
 /**
- * Consent — what we may keep, chosen before anything is captured.
+ * Consent — how much analysis happens on this device, chosen before capture.
+ *
+ * Not a share/don't-share question. Every session sends its model updates and
+ * its interaction record; those are what the study is made of. The choice is how
+ * raw the material is when it leaves: analysed here and discarded, measurements
+ * only, or the footage itself.
  *
  * This screen sets intent only. It writes `session.consent.current` and makes no
  * network call: the record of what actually left the device is written by the
  * data path as data leaves, not by a participant pressing Continue here.
  *
- * The copy no longer says data is held until the end. It isn't — responses are
- * sent as they are produced, and a session that is abandoned halfway has already
- * sent what it collected. The end screen is a thank-you and an offer to widen
- * this choice, never a gate and never a way to take something back.
+ * The copy does not say data is held until the end. It isn't — responses are
+ * sent as they are produced, and a session abandoned halfway has already sent
+ * what it collected. The end screen is a thank-you and an offer to go deeper,
+ * never a gate and never a way to take something back.
  */
 import { useRouter } from 'expo-router';
 import { StyleSheet, ScrollView, TouchableOpacity, View } from 'react-native';
@@ -33,10 +38,11 @@ export default function ConsentScreen() {
           <ThemedText type="small" themeColor="textSecondary">
             Consent
           </ThemedText>
-          <ThemedText type="title">What you&apos;re willing to share</ThemedText>
+          <ThemedText type="title">Where your video is analysed</ThemedText>
           <ThemedText themeColor="textSecondary">
-            Your webcam runs during the task either way — it&apos;s how the task works. What you
-            choose here is how much of it we may keep, and it applies from the moment you begin.
+            Your webcam runs during the task — that is how the task works. What you choose here is
+            how much of the analysis happens on your own computer before anything is sent. It
+            applies from the moment you begin.
           </ThemedText>
         </View>
 
@@ -47,8 +53,9 @@ export default function ConsentScreen() {
           />
 
           <ThemedText type="small" themeColor="textSecondary" style={styles.note}>
-            You can change your mind and share more at the end. Anything already sent can&apos;t be
-            taken back.
+            Whichever you pick, your answers and the results of the analysis are sent — that is
+            what the study is. You can choose to send more at the end; anything already sent
+            can&apos;t be taken back.
           </ThemedText>
         </ScrollView>
 

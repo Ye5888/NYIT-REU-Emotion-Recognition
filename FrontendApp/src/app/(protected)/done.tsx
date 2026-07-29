@@ -81,31 +81,28 @@ export default function DoneScreen() {
         <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
           <ThemedView type="backgroundElement" style={styles.card}>
             <ThemedText type="smallBold" themeColor="textSecondary">
-              WHAT YOU SHARED
+              WHAT WAS SENT
             </ThemedText>
-            {shared.length === 0 ? (
-              <ThemedText type="small" themeColor="textSecondary">
-                Nothing from this session was kept.
+            {shared.map((cat) => (
+              <ThemedText key={cat} type="small">
+                {'✓'}  {DATA_CATEGORY_LABELS[cat]}
               </ThemedText>
-            ) : (
-              shared.map((cat) => (
-                <ThemedText key={cat} type="small">
-                  {'✓'}  {DATA_CATEGORY_LABELS[cat]}
-                </ThemedText>
-              ))
-            )}
+            ))}
+            <ThemedText type="small" themeColor="textSecondary">
+              {'✓'}  Your answers and timings
+            </ThemedText>
           </ThemedView>
 
           {everything ? (
             <ThemedText type="small" themeColor="textSecondary">
-              You shared everything the study collects. Thank you — that is genuinely the most
-              useful kind of session we get.
+              You sent everything the study can use. Thank you — that is genuinely the most useful
+              kind of session we get.
             </ThemedText>
           ) : (
             <>
               <ThemedText type="smallBold">Want to help more?</ThemedText>
               <ThemedText type="small" themeColor="textSecondary">
-                Now that you have seen what the study involves, you can share more than you first
+                Now that you have seen what the study involves, you can send more than you first
                 agreed to. Entirely optional.
               </ThemedText>
 
@@ -124,7 +121,7 @@ export default function DoneScreen() {
                   { backgroundColor: theme.text, opacity: pending.length === 0 ? 0.3 : 1 },
                 ]}>
                 <ThemedText style={[styles.buttonText, { color: theme.background }]}>
-                  Share these too
+                  Send this too
                 </ThemedText>
               </TouchableOpacity>
             </>
