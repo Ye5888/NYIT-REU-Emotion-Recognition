@@ -188,3 +188,31 @@ export function persist(session: SessionState, write: RunWrite): void {
 export function persistMarks(session: SessionState, marks: CaptureMark[]): void {
   persist(session, { kind: 'sessionPatch', patch: { marks } });
 }
+
+// --- Video -------------------------------------------------------------------
+//
+// Parts go up as the recorder produces them, through the same queue as
+// everything else, so they inherit the same retry and ordering behaviour. The
+// queue being serial matters more here than elsewhere: the parts of a
+// MediaRecorder stream are only a valid file in order.
+
+export function persistVideoChunk(sessionId: string, chunk: Blob, seq: number): void {
+  enqueue(`video part ${seq}`, () => api.putVideoChunk(sessionId, chunk, seq));
+}
+
+/** Stitch the parts into one file server-side and record where it landed. */
+export function persistVideoFinalize(sessionId: string): void {
+  enqueue('video finalize', () => api.finalizeVideo(sessionId));
+}
+
+/**
+ * Send a whole recording at once.
+ *
+ * The path for a participant who declined raw video at the start and changed
+ * their mind at the end: nothing was streamed, so the retained blob goes up as a
+ * single part and is finalized immediately.
+ */
+export function persistWholeVideo(sessionId: string, blob: Blob): void {
+  enqueue('video whole', () => api.putVideoChunk(sessionId, blob, 0));
+  persistVideoFinalize(sessionId);
+}

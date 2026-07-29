@@ -141,6 +141,16 @@
             },
             "recordingStartedAt": {
               "type": "integer"
+            },
+            "videoPath": {
+              "type": "string",
+              "description": "Relative to Backend/. Written on the first part, so an abandoned run is still linked to its partial recording."
+            },
+            "videoStatus": {
+              "enum": [
+                "partial",
+                "complete"
+              ]
             }
           }
         },

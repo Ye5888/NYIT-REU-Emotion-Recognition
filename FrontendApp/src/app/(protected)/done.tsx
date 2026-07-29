@@ -25,7 +25,7 @@ import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { DATA_CATEGORIES, DATA_CATEGORY_LABELS } from '@/experiment/config';
 import { pendingCategories, submissionStatus, submit } from '@/experiment/consent';
 import { useCamera } from '@/experiment/camera';
-import { persist } from '@/experiment/persistence';
+import { persist, persistVideoFinalize, persistWholeVideo } from '@/experiment/persistence';
 import { useSession } from '@/experiment/session';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -35,15 +35,28 @@ export default function DoneScreen() {
   const { session, update, reset } = useSession();
   const { stopRecording, release } = useCamera();
   const settled = useRef(false);
+  const recording = useRef<Blob | null>(null);
+  // Captured on arrival, before the settle effect widens `submitted` — it has to
+  // mean "was raw video agreed to during the session", not "is it agreed now".
+  const streamedRawVideo = useRef(session.consent.current.includes('rawVideo'));
 
   // Both calls, in this order. Stopping the recorder ends the capture; only
   // releasing the stream hands the device back and turns the indicator light
   // off. Stopping alone leaves the light on for the rest of the browser session.
+  //
+  // The blob is kept in a ref because it may still be needed: a participant who
+  // declined raw video streamed nothing, and can choose to send it below.
   useEffect(() => {
     void (async () => {
-      await stopRecording();
+      const blob = await stopRecording();
       release();
+      recording.current = blob;
+
+      // Streaming happened only if raw video was agreed to up front, in which
+      // case the parts are already up there and just need stitching.
+      if (streamedRawVideo.current) persistVideoFinalize(session.sessionId);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopRecording, release]);
 
   // Reaching this screen *is* the fact that the consented data was sent, so the
@@ -73,9 +86,18 @@ export default function DoneScreen() {
 
   function shareMore() {
     if (pending.length === 0) return;
+
     const consent = submit(session.consent);
     update({ consent });
     persist(session, { kind: 'sessionPatch', patch: { consent } });
+
+    // Newly agreed to raw video, having streamed nothing during the session, so
+    // the retained recording goes up now as a single part.
+    const nowSharingRaw = pending.includes('rawVideo');
+    if (nowSharingRaw && !streamedRawVideo.current && recording.current) {
+      persistWholeVideo(session.sessionId, recording.current);
+      streamedRawVideo.current = true;
+    }
   }
 
   return (

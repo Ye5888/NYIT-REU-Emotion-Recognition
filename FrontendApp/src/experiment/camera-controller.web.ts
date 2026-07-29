@@ -8,7 +8,12 @@
  * Video only. Audio would mean a second permission prompt for a modality
  * nothing downstream consumes yet.
  */
-import { CameraError, type CameraController, type CaptureStream } from './camera-contract';
+import {
+  CameraError,
+  type CameraController,
+  type CaptureStream,
+  type ChunkSink,
+} from './camera-contract';
 
 const CONSTRAINTS: MediaStreamConstraints = {
   video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
@@ -26,6 +31,8 @@ function pickMimeType(): string {
 let stream: MediaStream | null = null;
 let recorder: MediaRecorder | null = null;
 let chunks: Blob[] = [];
+let sink: ChunkSink | null = null;
+let nextSeq = 0;
 
 export const cameraController: CameraController = {
   isSupported() {
@@ -59,15 +66,25 @@ export const cameraController: CameraController = {
     return stream;
   },
 
+  setChunkSink(next: ChunkSink | null) {
+    sink = next;
+  },
+
   startRecording() {
     if (!stream) throw new CameraError('unavailable', 'Camera was not acquired.');
     if (recorder) return Date.now();
 
     chunks = [];
+    nextSeq = 0;
     const mimeType = pickMimeType();
     recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
     recorder.ondataavailable = (e) => {
-      if (e.data.size > 0) chunks.push(e.data);
+      if (e.data.size === 0) return;
+      const seq = nextSeq++;
+      // Retained whether or not a sink is listening: consent can widen on the
+      // last screen, and the recording has to still be here to send.
+      chunks.push(e.data);
+      sink?.(e.data, seq);
     };
 
     // One-second slices rather than a single blob at stop: if the tab dies
@@ -103,6 +120,7 @@ export const cameraController: CameraController = {
   release() {
     if (recorder && recorder.state !== 'inactive') recorder.stop();
     recorder = null;
+    sink = null;
     stream?.getTracks().forEach((track) => track.stop());
     stream = null;
     chunks = [];

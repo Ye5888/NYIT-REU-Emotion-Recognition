@@ -23,7 +23,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { MaxContentWidth, Spacing } from '@/constants/theme';
 import { useCamera } from '@/experiment/camera';
-import { persist } from '@/experiment/persistence';
+import { persist, persistVideoChunk } from '@/experiment/persistence';
 import { useSession } from '@/experiment/session';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -31,13 +31,23 @@ export default function CameraCheckScreen() {
   const router = useRouter();
   const theme = useTheme();
   const { session, update } = useSession();
-  const { status, message, acquire, beginRecording } = useCamera();
+  const { status, message, acquire, setChunkSink, beginRecording } = useCamera();
 
   useEffect(() => {
     if (status === 'idle') void acquire();
   }, [status, acquire]);
 
   function start() {
+    // Attached before recording starts so the very first chunk is caught — that
+    // is the one carrying the file header, and without it the rest is unreadable.
+    //
+    // Only when raw video is what they agreed to. At the shallower rungs nothing
+    // is streamed; the recording is still retained locally, so it can be sent if
+    // they widen consent at the end.
+    if (session.consent.current.includes('rawVideo')) {
+      setChunkSink((chunk, seq) => persistVideoChunk(session.sessionId, chunk, seq));
+    }
+
     const startedAt = beginRecording();
     update({ recordingStartedAt: startedAt });
     // The clock every other timestamp is measured against — worth persisting the

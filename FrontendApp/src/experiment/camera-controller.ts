@@ -26,6 +26,8 @@ export const cameraController: CameraController = {
     return null;
   },
 
+  setChunkSink() {},
+
   startRecording(): number {
     throw new CameraError('unsupported', NOT_IMPLEMENTED);
   },

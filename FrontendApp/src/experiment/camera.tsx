@@ -12,7 +12,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { cameraController } from './camera-controller';
-import { CameraError, type CameraFailure } from './camera-contract';
+import { CameraError, type CameraFailure, type ChunkSink } from './camera-contract';
 import type { CaptureStatus } from './types';
 
 interface CameraContextValue {
@@ -23,6 +23,11 @@ interface CameraContextValue {
   supported: boolean;
   /** Open the camera and go live. Safe to call again after a failure. */
   acquire: () => Promise<void>;
+  /**
+   * Ship each timeslice as it is produced. Null detaches. Must be set before
+   * `beginRecording` to catch the first chunk, which carries the file header.
+   */
+  setChunkSink: (sink: ChunkSink | null) => void;
   /** Start recording; returns the epoch ms to measure offsets from, or null. */
   beginRecording: () => number | null;
   stopRecording: () => Promise<Blob | null>;
@@ -83,6 +88,10 @@ export function CameraProvider({ children }: { children: ReactNode }) {
     return blob;
   }, []);
 
+  const setChunkSink = useCallback((sink: ChunkSink | null) => {
+    cameraController.setChunkSink(sink);
+  }, []);
+
   const release = useCallback(() => {
     cameraController.release();
     setStatus('stopped');
@@ -95,12 +104,13 @@ export function CameraProvider({ children }: { children: ReactNode }) {
       message,
       supported: cameraController.isSupported(),
       acquire,
+      setChunkSink,
       beginRecording,
       stopRecording,
       release,
       getStream: () => cameraController.getStream(),
     }),
-    [status, failure, message, acquire, beginRecording, stopRecording, release],
+    [status, failure, message, acquire, setChunkSink, beginRecording, stopRecording, release],
   );
 
   return <CameraContext.Provider value={value}>{children}</CameraContext.Provider>;

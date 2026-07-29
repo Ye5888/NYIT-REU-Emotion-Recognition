@@ -63,6 +63,25 @@ async function send<T>(method: 'POST' | 'PUT', path: string, body: unknown): Pro
   return res.json() as Promise<T>;
 }
 
+/**
+ * Multipart upload. Content-Type is deliberately not set: the browser has to
+ * generate it, because only it knows the boundary token it used.
+ */
+async function upload<T>(path: string, form: FormData): Promise<T> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+    body: form,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new ApiError(text || res.statusText, res.status, path);
+  }
+
+  return res.json() as Promise<T>;
+}
+
 export const api = {
   getProtocol: (version: string) => get<Protocol>(`/protocols/${version}`),
   getCaseStudy: (id: string) => get<CaseStudy>(`/caseStudies/${id}`),
@@ -78,6 +97,17 @@ export const api = {
     send<{ message: string }>('PUT', `/sessions/${sessionId}`, patch),
   putResponse: (sessionId: string, body: ResponseDoc & { id: string }) =>
     send<{ id: string }>('POST', `/sessions/${sessionId}/responses`, body),
+
+  putVideoChunk: (sessionId: string, chunk: Blob, seq: number) => {
+    const form = new FormData();
+    // Named by sequence, so a retried part overwrites itself server-side.
+    form.append('chunk', chunk, `${sessionId}.${seq}.part`);
+    form.append('seq', String(seq));
+    return upload<{ seq: number }>(`/sessions/${sessionId}/video`, form);
+  },
+
+  finalizeVideo: (sessionId: string) =>
+    upload<{ parts: number; path: string }>(`/sessions/${sessionId}/video/finalize`, new FormData()),
 };
 
 export async function login(username: string, password: string): Promise<string> {

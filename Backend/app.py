@@ -10,6 +10,7 @@ from firebase_config import db
 import jwt
 from jwt_utils import generate_jwt
 import os
+import shutil
 import subprocess
 from datetime import datetime, timedelta, timezone
 from werkzeug.utils import secure_filename
@@ -17,6 +18,12 @@ from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 CORS(app)
+
+# Two forms, deliberately. The absolute one is for touching the filesystem; the
+# relative one is what gets stored, because an absolute path records the layout
+# of whichever machine happened to run the server and is wrong everywhere else.
+VIDEO_SUBDIR = os.path.join("uploads", "videos")
+VIDEO_DIR = os.path.join(os.path.dirname(__file__), VIDEO_SUBDIR)
 
 
 ### USERS
@@ -173,6 +180,107 @@ def delete_session(session_id):
         return jsonify({"message": "document not found"}), 404
     doc_ref.delete()
     return jsonify({"message": "session successfully deleted"}), 200
+
+
+### SESSION VIDEO
+#
+# Storage only. Deliberately separate from /predict, which stores *and* runs
+# inference *and* answers as a chatbot: none of that belongs in a collection
+# path. Inference during collection contributes nothing to the dataset being
+# collected, and /predict files its output under `labels` — a model's guess
+# stored as a label, in a study about where labels legitimately come from.
+#
+# Uploaded in sequence-numbered parts as the recording is produced rather than
+# as one file at the end, for the same reason responses are: a participant who
+# quits mid-task is the case most worth keeping, and a single upload at the end
+# is exactly what such a run never reaches. Each part is named by its sequence
+# number, so a retried part overwrites itself instead of duplicating.
+
+def video_part_path(session_id, seq):
+    return os.path.join(VIDEO_DIR, f"{secure_filename(session_id)}.{int(seq):06d}.part")
+
+
+def video_final_path(session_id):
+    return os.path.join(VIDEO_DIR, f"{secure_filename(session_id)}.webm")
+
+
+def video_stored_path(session_id):
+    """What goes in the session document: relative to Backend/, POSIX separators."""
+    return f"{VIDEO_SUBDIR}/{secure_filename(session_id)}.webm".replace(os.sep, "/")
+
+
+@app.route("/sessions/<session_id>/video", methods=["POST"])
+@auth_required
+def add_session_video(session_id):
+    if "chunk" not in request.files:
+        return jsonify({"error": "no chunk provided"}), 400
+
+    doc_ref, error = session_owned_by_caller(session_id)
+    if error:
+        return error
+    if not doc_ref.get().exists:
+        return jsonify({"error": "session not found"}), 404
+
+    try:
+        seq = int(request.form.get("seq", ""))
+    except ValueError:
+        return jsonify({"error": "seq must be an integer"}), 400
+    if seq < 0:
+        return jsonify({"error": "seq must not be negative"}), 400
+
+    os.makedirs(VIDEO_DIR, exist_ok=True)
+    request.files["chunk"].save(video_part_path(session_id, seq))
+
+    # Written on the first part, not at finalize. A run that is abandoned never
+    # reaches finalize, so if the pointer were only written there, a partial
+    # recording would sit on disk with nothing in the database referring to it —
+    # findable only by scanning filenames. The destination is deterministic from
+    # the session id, so it can be recorded before the file exists.
+    if seq == 0:
+        doc_ref.set(
+            {"captures": {"videoPath": video_stored_path(session_id), "videoStatus": "partial"}},
+            merge=True,
+        )
+
+    return jsonify({"seq": seq}), 201
+
+
+@app.route("/sessions/<session_id>/video/finalize", methods=["POST"])
+@auth_required
+def finalize_session_video(session_id):
+    doc_ref, error = session_owned_by_caller(session_id)
+    if error:
+        return error
+    if not doc_ref.get().exists:
+        return jsonify({"error": "session not found"}), 404
+
+    safe_id = secure_filename(session_id)
+    parts = sorted(
+        p for p in os.listdir(VIDEO_DIR)
+        if p.startswith(f"{safe_id}.") and p.endswith(".part")
+    ) if os.path.isdir(VIDEO_DIR) else []
+
+    if not parts:
+        return jsonify({"error": "no parts to finalize"}), 404
+
+    # A MediaRecorder timeslice stream is only valid concatenated in order — the
+    # first part carries the container header and the rest are continuations.
+    # Sorting on the zero-padded sequence number is that order.
+    final_path = video_final_path(session_id)
+    with open(final_path, "wb") as out:
+        for part in parts:
+            with open(os.path.join(VIDEO_DIR, part), "rb") as chunk:
+                shutil.copyfileobj(chunk, out)
+
+    for part in parts:
+        os.remove(os.path.join(VIDEO_DIR, part))
+
+    stored = video_stored_path(session_id)
+    doc_ref.set(
+        {"captures": {"overallVideoUrl": stored, "videoPath": stored, "videoStatus": "complete"}},
+        merge=True,
+    )
+    return jsonify({"parts": len(parts), "path": stored}), 200
 
 
 ### SESSIONS RESPONSES
@@ -634,7 +742,11 @@ def logout():
         return jsonify({"message": "logged out successfully"}), 200
     
 
-@app.route("predict", methods = ["POST"])
+# NOTE: the missing leading slash here raised ValueError at import, so the whole
+# server failed to start — not just this endpoint. Everything else about this
+# route is left as written; see /sessions/<id>/video for the study's own upload
+# path, which stores and does not infer.
+@app.route("/predict", methods = ["POST"])
 @auth_required
 def predict():
     if "video" not in request.files:

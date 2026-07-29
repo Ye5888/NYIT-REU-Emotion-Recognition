@@ -29,6 +29,15 @@ export class CameraError extends Error {
   }
 }
 
+/**
+ * Receives each timeslice as it is produced, with its sequence number.
+ *
+ * Chunks are always retained in memory regardless of whether a sink is
+ * attached — a participant may widen consent on the last screen, and the
+ * recording has to still be there to send.
+ */
+export type ChunkSink = (chunk: Blob, seq: number) => void;
+
 export interface CameraController {
   /** False when this platform has no implementation at all. */
   isSupported(): boolean;
@@ -38,6 +47,13 @@ export interface CameraController {
 
   /** The live stream, for the preview to render. Null before `acquire`. */
   getStream(): CaptureStream | null;
+
+  /**
+   * Ship each timeslice somewhere as it is produced. Null detaches.
+   * Set before `startRecording` to catch the first chunk, which is the one
+   * carrying the container header.
+   */
+  setChunkSink(sink: ChunkSink | null): void;
 
   /** Begin recording. Returns the epoch ms that every offset is measured from. */
   startRecording(): number;
