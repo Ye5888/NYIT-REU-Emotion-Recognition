@@ -7,7 +7,7 @@ __pycache__/
 .ipynb_checkpoints/
 venv/serviceAccountKey.json
 node_modules/
-backend/uploads/
+Backend/uploads/
 *.pkl
 .env
 Backend/serviceAccountKey.json
