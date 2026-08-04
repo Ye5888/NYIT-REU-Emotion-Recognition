@@ -12,4 +12,5 @@ numpy
 pandas
 scikit-learn
 joblib
-cryptography
+py-feat
+wcwidth
