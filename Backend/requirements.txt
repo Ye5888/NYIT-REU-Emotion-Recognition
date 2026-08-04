@@ -1,0 +1,16 @@
+flask
+flask_cors
+firebase-admin
+jsonschema
+opensmile
+PyJWT
+google-genai
+python-dotenv
+cryptography
+scipy
+numpy
+pandas
+scikit-learn
+joblib
+py-feat
+wcwidth

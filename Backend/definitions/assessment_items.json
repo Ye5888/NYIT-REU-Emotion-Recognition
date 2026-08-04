@@ -1,0 +1,45 @@
+{
+  "assess_pre_confound_1": {
+    "stage": "pretest",
+    "construct": "confounding_variables",
+    "responseType": "choice",
+    "prompt": "A study finds coffee-drinkers score higher on exams. What's the flaw?",
+    "choices": ["No flaw", "Confound", "Small sample", "Bad measure"],
+    "correctKey": "Confound"
+  },
+  "assess_pre_confound_2": {
+    "stage": "pretest",
+    "construct": "random_assignment",
+    "responseType": "choice",
+    "prompt": "Why does random assignment matter in an experiment?",
+    "choices": [
+      "It makes the sample larger",
+      "It makes groups comparable at baseline",
+      "It removes measurement error",
+      "It guarantees a significant result"
+    ],
+    "correctKey": "It makes groups comparable at baseline"
+  },
+  "assess_post_confound_1": {
+    "stage": "posttest",
+    "construct": "confounding_variables",
+    "responseType": "choice",
+    "prompt": "Students who attend review sessions score higher. What is the most likely confound?",
+    "choices": [
+      "Review sessions are too short",
+      "Motivated students both attend and study more",
+      "The exam was too easy",
+      "There is no confound"
+    ],
+    "correctKey": "Motivated students both attend and study more"
+  },
+  "assess_transfer_1": {
+    "stage": "transfer",
+    "construct": "confounding_variables",
+    "transferType": "far",
+    "responseType": "choice",
+    "prompt": "A new city installs streetlights; crime drops. A reporter credits the lights. Evaluate.",
+    "choices": ["Sound", "Confounded", "Reverse causation", "Both B and C"],
+    "correctKey": "Both B and C"
+  }
+}

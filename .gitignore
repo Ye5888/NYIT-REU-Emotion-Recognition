@@ -5,4 +5,68 @@ CREMA-D/AudioWAV/
 CREMA-D/AudioMP3/
 __pycache__/
 .ipynb_checkpoints/
+venv/serviceAccountKey.json
+node_modules/
+Backend/uploads/
+*.pkl
+.env
+Backend/serviceAccountKey.json
+Backend/.venv
+FrontendApp/node_modules/
+*/serviceAccountKey.json
 venv/
+
+# macOS
+.DS_Store
+
+
+#REACT NATIVE APP GitIgnore
+FrontendApp/firebase.ts
+
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+FrontendApp/node_modules/
+
+# Expo
+FrontendApp/.expo/
+FrontendApp/dist/
+FrontendApp/web-build/
+FrontendApp/expo-env.d.ts
+
+# Native
+FrontendApp/.kotlin/
+FrontendApp/*.orig.*
+FrontendApp/*.jks
+FrontendApp/*.p8
+FrontendApp/*.p12
+FrontendApp/*.key
+FrontendApp/*.mobileprovision
+
+# Metro
+FrontendApp/.metro-health-check*
+
+# debug
+FrontendApp/npm-debug.*
+FrontendApp/yarn-debug.*
+FrontendApp/yarn-error.*
+
+# macOS
+FrontendApp/.DS_Store
+FrontendApp/*.pem
+
+# local env files
+FrontendApp/.env*.local
+
+# typescript
+FrontendApp/*.tsbuildinfo
+
+FrontendApp/example
+
+# generated native folders
+FrontendApp/ios
+FrontendApp/android
+
+# docs
+
+REU_Midterm_Report (1).pdf

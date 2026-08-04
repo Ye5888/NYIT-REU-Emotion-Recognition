@@ -1,0 +1,220 @@
+/**
+ * Core experiment data model.
+ *
+ * The definition types mirror Backend/schema/definitions.schema.json, which is
+ * what actually validates them. Keep the two in sync.
+ */
+import type { DataCategory, Modality } from './config';
+
+export type Speaker = 'tutor' | 'peer';
+
+/** Truth values of the tutor's and the peer's claims, in that order. */
+export type Condition = 'TT' | 'TF' | 'FT' | 'FF';
+
+/** Per participant: probes after each trial, or all of them at the end. */
+export type ProbeTiming = 'immediate' | 'retrospective';
+
+// --- Definition side ---------------------------------------------------------
+
+export interface CaseStudy {
+  id: string;
+  topic: string;
+  index: number;
+  source?: string;
+  studyText: string;
+  flaw: string;
+  trialCount: number;
+  /** Used to cue recall when probes are asked retrospectively. */
+  cueSummary?: string;
+}
+
+export interface Turn {
+  speaker: Speaker;
+  text: string;
+}
+
+/**
+ * Keyed on the full condition, not on the speaker's own truth value: an
+ * utterance's discourse markers depend on whether the other agent agreed, so
+ * two variants cannot cover four combinations.
+ */
+export interface Assertion {
+  speaker: Speaker;
+  variants: Record<Condition, string>;
+}
+
+export interface TaskTrial {
+  id: string;
+  caseStudyId: string;
+  index: number;
+  facet: string;
+  advanceTurn: Turn;
+  assertions: Assertion[];
+  forcedChoicePrompt: string;
+  choices: string[];
+  /** Ground truth about the facet. Deliberately independent of `condition`. */
+  correctKey: string;
+}
+
+export interface ProbeQuestion {
+  id: string;
+  modality: Modality;
+  responseType: 'scale' | 'choice' | 'text';
+  prompt: string;
+  scale?: { min: number; max: number };
+  choices?: string[];
+  definitionVariant?: string | null;
+}
+
+export interface AssessmentItem {
+  id: string;
+  stage: 'pretest' | 'posttest' | 'transfer';
+  construct: string;
+  transferType?: 'near' | 'far';
+  responseType: 'choice';
+  prompt: string;
+  choices: string[];
+  correctKey: string;
+}
+
+export interface Protocol {
+  version: string;
+  policy: {
+    probeTiming: string;
+    probeOrder: string;
+    defineLabels: boolean;
+  };
+  probeIds: string[];
+  assessmentItemIds: Record<'pretest' | 'posttest' | 'transfer', string[]>;
+  caseStudyIds: string[];
+}
+
+// --- Run side ----------------------------------------------------------------
+
+/** This participant's realized draw. Persisted rather than recomputed. */
+export interface Assignment {
+  probeTiming: ProbeTiming;
+  probeOrder: string[];
+  caseStudies: { caseStudyId: string; condition: Condition }[];
+}
+
+export interface ForcedChoiceResponse {
+  trialId: string;
+  caseStudyId: string;
+  value: string;
+  correct: boolean;
+  respondedAt: number;
+}
+
+/** Probes are asked once per case study, not once per trial. */
+export interface ProbeResponse {
+  caseStudyId: string;
+  questionId: string;
+  value: number | string;
+  respondedAt: number;
+}
+
+export interface AssessmentResponse {
+  itemId: string;
+  stage: 'pretest' | 'posttest' | 'transfer';
+  value: string;
+  correct: boolean;
+  respondedAt: number;
+}
+
+/**
+ * Two-set consent. Invariant: `submitted` ⊆ `current`, and `submitted` never
+ * shrinks (data that has left the device cannot be un-sent).
+ */
+export interface ConsentState {
+  current: DataCategory[]; // live choices; editable in the range [submitted, all]
+  submitted: DataCategory[]; // irrevocable; only grows
+}
+
+/** Derived from ConsentState — never stored. See ./consent.ts. */
+export type SubmissionStatus = 'none' | 'partial' | 'complete';
+
+// --- Capture side ------------------------------------------------------------
+
+/**
+ * When something appeared, as opposed to when it was answered.
+ *
+ * Every response already carries `respondedAt`, so the video offset of an
+ * *answer* is just `respondedAt - recordingStartedAt`. What that cannot give us
+ * is when the participant first saw the thing they were answering — and the
+ * interval between the two is response latency, which is signal in its own
+ * right. Hence onsets, recorded separately.
+ */
+export interface CaptureMark {
+  kind: 'trialOnset' | 'probeOnset';
+  /** Trial id or case-study id, depending on `kind`. */
+  refId: string;
+  at: number;
+}
+
+export type CaptureStatus =
+  | 'idle' // nothing requested yet
+  | 'ready' // camera acquired, preview live, not recording
+  | 'recording'
+  | 'stopped'
+  | 'unavailable'; // denied, no device, or unsupported platform
+
+export interface SessionState {
+  sessionId: string;
+  accountId?: string; // set on sign-in (return-to-submit flow)
+  protocolVersion: string;
+  seed: number;
+  consent: ConsentState;
+  assignment: Assignment;
+  forcedChoices: ForcedChoiceResponse[];
+  probes: ProbeResponse[];
+  assessments: AssessmentResponse[];
+  /** Epoch ms at which capture began; every other timestamp is an offset from it. */
+  recordingStartedAt: number | null;
+  marks: CaptureMark[];
+}
+
+// --- Wire shapes -------------------------------------------------------------
+//
+// What the backend stores, as against what the app holds. These mirror
+// Backend/schema/runs.schema.json — keep the two in sync.
+//
+// The app's SessionState is not the stored document: it carries UI-side detail
+// the run has no use for, and the stored document carries lifecycle fields
+// (status, completedAt, userId) the app does not own. `userId` in particular is
+// stamped by the server from the auth token and never sent by the client.
+
+export type SessionStatus = 'inProgress' | 'complete' | 'abandoned';
+
+export interface SessionDoc {
+  protocolVersion: string;
+  seed: number;
+  consent: ConsentState;
+  assignment: Assignment;
+  status: SessionStatus;
+  startedAt: number;
+  completedAt?: number;
+  captures?: { overallVideoUrl?: string; recordingStartedAt?: number };
+  marks?: CaptureMark[];
+}
+
+/** One answer, flattened across the three kinds the app collects. */
+export interface ResponseDoc {
+  stage: 'pretest' | 'task' | 'probe' | 'posttest' | 'transfer';
+  itemId: string;
+  caseStudyId?: string;
+  trialId?: string;
+  timing?: ProbeTiming;
+  value: string | number;
+  correct?: boolean;
+  respondedAt: number;
+}
+
+export function utteranceFor(assertion: Assertion, condition: Condition): string {
+  return assertion.variants[condition];
+}
+
+/** Whether this speaker asserts the truth under a given condition. */
+export function isTruthful(assertion: Assertion, condition: Condition): boolean {
+  return (assertion.speaker === 'tutor' ? condition[0] : condition[1]) === 'T';
+}
