@@ -690,7 +690,7 @@ def login():
     if existing_token:
         try:
             jwt.decode(existing_token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
-            return jsonify(user_data)
+            return jsonify({"token": existing_token}), 200
         except Exception:
             pass
     token = generate_jwt(user_doc.id)
