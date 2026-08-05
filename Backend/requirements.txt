@@ -12,5 +12,3 @@ numpy
 pandas
 scikit-learn
 joblib
-py-feat
-wcwidth
