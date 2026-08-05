@@ -29,6 +29,7 @@ VIDEO_DIR = os.path.join(os.path.dirname(__file__), VIDEO_SUBDIR)
 ### USERS
 
 @app.route("/users", methods=["GET"])
+@auth_required
 def get_all_users():
     users_ref = db.collection('users')
     docs = users_ref.stream()
@@ -39,6 +40,7 @@ def get_all_users():
     return jsonify(users), 200
 
 @app.route("/users/<user_id>", methods=["GET"])
+@auth_required
 def get_user(user_id):
     doc_ref = db.collection('users').document(user_id)
     doc = doc_ref.get()
@@ -53,6 +55,7 @@ def get_user(user_id):
     return jsonify(user_data), 200
 
 @app.route("/users", methods=["POST"])
+@auth_required
 def add_user():
     data = request.get_json()
     if "name" in data:
@@ -63,6 +66,7 @@ def add_user():
     return jsonify({"message": "user added"}), 201
 
 @app.route("/users/<user_id>", methods=["PUT"])
+@auth_required
 def modify_user(user_id):
     data = request.get_json()
     doc_ref = db.collection("users").document(user_id)
@@ -77,6 +81,7 @@ def modify_user(user_id):
     return jsonify({"message": "user successfully updated"}), 200
 
 @app.route("/users/<user_id>", methods=["DELETE"])
+@auth_required
 def delete_user(user_id):
     doc_ref = db.collection("users").document(user_id)
     doc = doc_ref.get()
@@ -89,6 +94,7 @@ def delete_user(user_id):
 ### SESSIONS
 
 @app.route("/sessions", methods=["GET"])
+@auth_required
 def get_all_sessions():
     sessions_ref = db.collection('sessions')
     docs = sessions_ref.stream()
@@ -413,6 +419,7 @@ def delete_label(session_id, label_id):
 ### EMOTION RECORDS
 
 @app.route("/emotion_records", methods=["GET"])
+@auth_required
 def get_all_emotion_records():
     docs = db.collection('emotion_records').stream()
     records = []
@@ -530,6 +537,7 @@ def add_probe_question():
 ### ASSESSMENT ITEMS
 
 @app.route("/assessmentItems", methods=["GET"])
+@auth_required
 def get_all_assessment_items():
     docs = db.collection("assessmentItems").stream()
     items = []
@@ -540,6 +548,7 @@ def get_all_assessment_items():
     return jsonify(items), 200
 
 @app.route("/assessmentItems/<item_id>", methods=["GET"])
+@auth_required
 def get_assessment_item(item_id):
     doc_ref = db.collection("assessmentItems").document(item_id)
     doc = doc_ref.get()
@@ -573,6 +582,7 @@ def add_assessment_item():
 # The study text lives here so it is stored once, not repeated on every trial.
 
 @app.route("/caseStudies", methods=["GET"])
+@auth_required
 def get_all_case_studies():
     docs = db.collection("caseStudies").stream()
     case_studies = []
@@ -583,6 +593,7 @@ def get_all_case_studies():
     return jsonify(case_studies), 200
 
 @app.route("/caseStudies/<case_study_id>", methods=["GET"])
+@auth_required
 def get_case_study(case_study_id):
     doc_ref = db.collection("caseStudies").document(case_study_id)
     doc = doc_ref.get()
@@ -593,6 +604,7 @@ def get_case_study(case_study_id):
     return jsonify(data), 200
 
 @app.route("/caseStudies/<case_study_id>/trials", methods=["GET"])
+@auth_required
 def get_case_study_trials(case_study_id):
     docs = db.collection("taskTrials").where("caseStudyId", "==", case_study_id).stream()
     trials = []
@@ -622,6 +634,7 @@ def add_case_study():
 ### TASK TRIALS
 
 @app.route("/taskTrials", methods=["GET"])
+@auth_required
 def get_all_task_trials():
     docs = db.collection("taskTrials").stream()
     trials = []
@@ -632,6 +645,7 @@ def get_all_task_trials():
     return jsonify(trials), 200
 
 @app.route("/taskTrials/<trial_id>", methods=["GET"])
+@auth_required
 def get_task_trial(trial_id):
     doc_ref = db.collection("taskTrials").document(trial_id)
     doc = doc_ref.get()
@@ -782,4 +796,4 @@ def predict():
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)

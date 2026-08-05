@@ -109,17 +109,10 @@ def construct_feature_vector(video_path, audio_path):
 
 
 def run_openface(video_path, csv_output_dir):
-    # Get absolute path for Docker volume mount
-    abs_video_path = os.path.abspath(video_path)
-    abs_csv_dir = os.path.abspath(csv_output_dir)
+    openface_bin = "/home/yesongquing/OpenFace/build/bin/FeatureExtraction"
     
     subprocess.run([
-        "docker", "run", "--rm",
-        "--platform", "linux/amd64",
-        "-v", f"{os.path.dirname(abs_video_path)}:/data/video",
-        "-v", f"{abs_csv_dir}:/data/output",
-        "algebr/openface:latest",
-        "/home/openface-build/build/bin/FeatureExtraction",
-        "-f", f"/data/video/{os.path.basename(abs_video_path)}",
-        "-out_dir", "/data/output/"
+        openface_bin,
+        "-f", os.path.abspath(video_path),
+        "-out_dir", os.path.abspath(csv_output_dir)
     ])
