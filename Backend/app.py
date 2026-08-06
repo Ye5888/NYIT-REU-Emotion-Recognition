@@ -2,7 +2,7 @@ from flask import Flask, g, jsonify, request
 from flask_cors import CORS
 from firebase_admin import firestore
 from predict import predict_emotion
-from chatbot import get_chatbot_response, get_flashcard
+from chatbot import get_chatbot_response, generate_flashcard
 from auth import auth_required
 from encryption import encrypt, decrypt
 from firebase_config import db
@@ -695,7 +695,7 @@ def start_learning():
     if not "topic":
         return jsonify({"error" : "topic required"}), 400
     
-    flashcard = get_flashcard(topic)
+    flashcard = generate_flashcard(topic)
     return jsonify(flashcard), 200
 
 @app.route("/learning/answer", methods=["POST"])
@@ -712,7 +712,7 @@ def submit_learning_answer():
     if total_count >= 10 and accuracy >= 0.8:
         return jsonify({"status": "complete", "accuracy": accuracy}), 200
     
-    flashcard = get_flashcard(topic, emotion)
+    flashcard = generate_flashcard(topic, emotion)
     return jsonify({"status": "continue", "flashcard": flashcard}), 200
 
 
