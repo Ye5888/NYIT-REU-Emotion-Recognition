@@ -1,4 +1,5 @@
 import os
+import json
 from google import genai
 from google.genai import types
 
@@ -32,3 +33,25 @@ def get_chatbot_response(student_message, emotion=None):
 
     response = chat.send_message(prompt)
     return response.text
+
+def generate_flashcard(topic, emotion=None):
+    emotion_context = f"The student is currently feeling: {emotion}. " if emotion else ""
+    
+    prompt = f"""{emotion_context}Generate a flashcard for the topic "{topic}".
+        Provide a term and two definitions that are subtly different — one correct, one plausibly wrong but not obviously so.
+        The wrong option should be a common misconception or a slight distortion of the truth.
+        Return ONLY valid JSON in exactly this format, no other text:
+    {{
+        "term": "the term or concept",
+        "option_a": "first definition",
+        "option_b": "second definition",
+        "correct_key": "A or B"
+    }}"""
+
+    response = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=prompt
+    )
+    
+    text = response.text.strip().replace("```json", "").replace("```", "").strip()
+    return json.loads(text)

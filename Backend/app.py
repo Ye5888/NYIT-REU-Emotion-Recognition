@@ -2,7 +2,7 @@ from flask import Flask, g, jsonify, request
 from flask_cors import CORS
 from firebase_admin import firestore
 from predict import predict_emotion
-from chatbot import get_chatbot_response
+from chatbot import get_chatbot_response, get_flashcard
 from auth import auth_required
 from encryption import encrypt, decrypt
 from firebase_config import db
@@ -685,6 +685,18 @@ def chatbot():
     emotion = data.get("emotion")
     response = get_chatbot_response(student_message, emotion)
     return jsonify({"response": response}), 200
+
+@app.route("/learning/start", methods = ["POST"])
+@auth_required
+def start_learning():
+    data = request.get_json()
+    topic = data["topic"]
+
+    if not "topic":
+        return jsonify({"error" : "topic required"}), 400
+    
+    flashcard = get_flashcard(topic)
+    return jsonify(flashcard), 200
 
 
 ### AUTH
