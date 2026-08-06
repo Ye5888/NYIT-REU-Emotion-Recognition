@@ -1,11 +1,10 @@
 
 export const loginUser = async (user) => {
+    const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'http://34.63.101.16:5000';
 
     try{
-
-        const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'http://localhost:5000';
-
         const response = await fetch(`${API_URL}/login`, {
+
             method:"POST",
             headers:{
             'Content-Type': 'application/json' 
