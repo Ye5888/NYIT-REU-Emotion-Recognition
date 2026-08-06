@@ -94,6 +94,10 @@ export default function LoginScreen() {
                 Log In
               </Text>
             </Pressable>
+            
+            <Pressable onPress={() => router.push('/signup')}>
+              <Text style={styles.signupText}>{"Don't have an account? Sign up"}</Text>
+            </Pressable>
               { user ? <Text>Logged In!</Text> : user === null ? <Text>failed to log in</Text> : <></>}
           </View>
         </View>
@@ -169,5 +173,12 @@ const styles = StyleSheet.create({
         color: "#FFFFFF",
         fontSize: 16,
         fontWeight: "600",
+    },
+
+    signupText: {
+      color: "#777777",
+      fontSize: 14,
+      textAlign: "center" as const,
+      marginTop: 12,
     },
 });
