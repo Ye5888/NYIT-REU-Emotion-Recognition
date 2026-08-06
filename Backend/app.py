@@ -12,6 +12,7 @@ from jwt_utils import generate_jwt
 import os
 import shutil
 import subprocess
+import bcrypt
 from datetime import datetime, timedelta, timezone
 from werkzeug.utils import secure_filename
 
@@ -698,7 +699,8 @@ def login():
         return jsonify({"error": "user not found"}), 404
     user_doc = users_ref[0]
     user_data = user_doc.to_dict()
-    if user_data.get("password") != password:
+    stored_hash = user_data.get("password", "")
+    if not bcrypt.checkpw(password.encode(), stored_hash.encode()):
         return jsonify({"error": "invalid password"}), 401
     existing_token = user_data.get("token")
     if existing_token:
@@ -720,10 +722,14 @@ def login():
 def signup():
     data = request.get_json()
     username = data.get("username")
+    password = data.get("password")
     existing = db.collection("users").where("username", "==", username).get()
 
     if existing:
         return jsonify({"error": "username already taken"}), 409
+    
+    data["password"] = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+
     user_ref = db.collection('users').add(data)
     token = generate_jwt(user_ref[-1].id)
     db.collection("auth_tokens").add({
