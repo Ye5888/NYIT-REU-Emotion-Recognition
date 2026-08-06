@@ -698,6 +698,23 @@ def start_learning():
     flashcard = get_flashcard(topic)
     return jsonify(flashcard), 200
 
+@app.route("/learning/answer", methods=["POST"])
+@auth_required
+def submit_learning_answer():
+    data = request.get_json()
+    topic = data.get("topic")
+    correct = data.get("correct")
+    emotion = data.get("emotion")
+    correct_count = data.get("correct_count", 0)
+    total_count = data.get("total_count", 0)
+    
+    accuracy = correct_count / total_count if total_count > 0 else 0
+    if total_count >= 10 and accuracy >= 0.8:
+        return jsonify({"status": "complete", "accuracy": accuracy}), 200
+    
+    flashcard = get_flashcard(topic, emotion)
+    return jsonify({"status": "continue", "flashcard": flashcard}), 200
+
 
 ### AUTH
 
