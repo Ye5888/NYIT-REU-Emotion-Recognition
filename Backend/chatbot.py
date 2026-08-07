@@ -25,7 +25,7 @@ def get_chatbot_response(student_message, emotion=None):
         prompt = "Here is the student message: " + student_message + " Here is what the student seems to be feeling based on their facial expressions and audio recording" + emotion
     
     chat = client.chats.create(
-        model="gemini-2.5-flash",
+        model="gemini-2.0-flash",
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
         ),
@@ -49,7 +49,7 @@ def generate_flashcard(topic, emotion=None):
     }}"""
 
     response = client.models.generate_content(
-        model="gemini-2.5-flash",
+        model="gemini-2.0-flash",
         contents=prompt
     )
     
