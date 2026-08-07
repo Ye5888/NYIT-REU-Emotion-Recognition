@@ -4,7 +4,7 @@ firebase-admin
 jsonschema
 opensmile
 PyJWT
-google-genai
+openai
 python-dotenv
 cryptography
 scipy

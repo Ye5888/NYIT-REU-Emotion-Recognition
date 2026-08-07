@@ -1,13 +1,18 @@
 import os
 import json
-from google import genai
-from google.genai import types
+from openai import OpenAI
 
 from dotenv import load_dotenv
 load_dotenv()
 
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# Groq speaks the OpenAI Chat Completions API, so the official OpenAI SDK
+# works as-is once pointed at Groq's base URL with a Groq key.
+client = OpenAI(
+    api_key=os.getenv("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1",
+)
 
+MODEL = "llama-3.3-70b-versatile"
 
 SYSTEM_INSTRUCTION = """You are an educational AI tutor helping a student learn a topic through guided dialogue.
 You will receive the student's message and their current emotional state detected from their facial expressions and audio.
@@ -23,20 +28,20 @@ def get_chatbot_response(student_message, emotion=None):
     prompt = student_message
     if emotion:
         prompt = "Here is the student message: " + student_message + " Here is what the student seems to be feeling based on their facial expressions and audio recording" + emotion
-    
-    chat = client.chats.create(
-        model="gemini-2.0-flash",
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_INSTRUCTION,
-        ),
+
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {"role": "system", "content": SYSTEM_INSTRUCTION},
+            {"role": "user", "content": prompt},
+        ],
     )
 
-    response = chat.send_message(prompt)
-    return response.text
+    return response.choices[0].message.content
 
 def generate_flashcard(topic, emotion=None):
     emotion_context = f"The student is currently feeling: {emotion}. " if emotion else ""
-    
+
     prompt = f"""{emotion_context}Generate a flashcard for the topic "{topic}".
         Provide a term and two definitions that are subtly different — one correct, one plausibly wrong but not obviously so.
         The wrong option should be a common misconception or a slight distortion of the truth.
@@ -48,10 +53,11 @@ def generate_flashcard(topic, emotion=None):
         "correct_key": "A or B"
     }}"""
 
-    response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=prompt
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        response_format={"type": "json_object"},
     )
-    
-    text = response.text.strip().replace("```json", "").replace("```", "").strip()
+
+    text = response.choices[0].message.content.strip().replace("```json", "").replace("```", "").strip()
     return json.loads(text)
