@@ -1,6 +1,7 @@
+import { API_BASE } from '@/experiment/api';
 
 export const loginUser = async (user) => {
-    const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'http://34.63.101.16:5000';
+    const API_URL = API_BASE;
 
     try{
         const response = await fetch(`${API_URL}/login`, {

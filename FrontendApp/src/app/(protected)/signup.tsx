@@ -1,9 +1,9 @@
 import { useRouter } from 'expo-router';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useState } from 'react';
-import { setAuthToken } from '@/experiment/api';
+import { API_BASE, setAuthToken } from '@/experiment/api';
 
-const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'http://34.63.101.16:5000';
+const API_URL = API_BASE;
 
 export default function SignupScreen() {
   const router = useRouter();
