@@ -695,7 +695,11 @@ def start_learning():
     if not topic:
         return jsonify({"error" : "topic required"}), 400
 
-    flashcard = generate_flashcard(topic)
+    try:
+        flashcard = generate_flashcard(topic)
+    except Exception as e:
+        return jsonify({"error": "Could not generate a flashcard right now. Please try again shortly."}), 502
+
     return jsonify(flashcard), 200
 
 @app.route("/learning/answer", methods=["POST"])
@@ -711,8 +715,12 @@ def submit_learning_answer():
     accuracy = correct_count / total_count if total_count > 0 else 0
     if total_count >= 10 and accuracy >= 0.8:
         return jsonify({"status": "complete", "accuracy": accuracy}), 200
-    
-    flashcard = generate_flashcard(topic, emotion)
+
+    try:
+        flashcard = generate_flashcard(topic, emotion)
+    except Exception as e:
+        return jsonify({"error": "Could not generate the next flashcard right now. Please try again shortly."}), 502
+
     return jsonify({"status": "continue", "flashcard": flashcard}), 200
 
 
