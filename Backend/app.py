@@ -18,7 +18,7 @@ from werkzeug.utils import secure_filename
 
 
 app = Flask(__name__)
-CORS(app, origins=["http://localhost:8081", "http://localhost:8082", "http://localhost:19006"])
+CORS(app)
 
 # Two forms, deliberately. The absolute one is for touching the filesystem; the
 # relative one is what gets stored, because an absolute path records the layout
