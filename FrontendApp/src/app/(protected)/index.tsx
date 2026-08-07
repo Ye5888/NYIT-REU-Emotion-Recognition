@@ -79,6 +79,7 @@ export default function WelcomeScreen() {
           accessibilityRole="button">
           <ThemedText style={[styles.buttonText, { color: theme.background }]}>Begin</ThemedText>
         </TouchableOpacity>
+
       </SafeAreaView>
     </ThemedView>
   );

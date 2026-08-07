@@ -24,7 +24,7 @@ export default function SignupScreen() {
       if (response.ok) {
         setAuthToken(result.token);
         setStatus('success');
-        setTimeout(() => router.push('/consent'), 1500);
+        setTimeout(() => router.push('/choose'), 1500);
       } else {
         setStatus('error');
       }
