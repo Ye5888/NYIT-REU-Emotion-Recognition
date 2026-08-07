@@ -56,6 +56,10 @@ export default function LearnScreen() {
             });
             const card = await res.json();
             console.log('Response:', res.status, card);
+            if (!res.ok) {
+                alert('Error: ' + (card.error || `Request failed (${res.status})`));
+                return;
+            }
             setFlashcard(card);
             setStarted(true);
         } catch (error) {
@@ -96,6 +100,11 @@ export default function LearnScreen() {
             const data = await res.json();
             setSelected(null);
             setFeedback(null);
+
+            if (!res.ok) {
+                alert('Error: ' + (data.error || `Request failed (${res.status})`));
+                return;
+            }
 
             if (data.status === 'complete') {
                 setComplete(true);
