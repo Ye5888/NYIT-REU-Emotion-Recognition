@@ -815,7 +815,11 @@ def predict():
     video_path = os.path.join("uploads/videos", video_filename)
     video.save(video_path)
 
-    audio_path = video_path.replace(".mp4", ".wav")
+    # .replace(".mp4", ...) was a no-op for any other container (the web
+    # recorder produces .webm) and left audio_path == video_path, so ffmpeg
+    # tried to overwrite its own input. splitext works regardless of the
+    # source extension.
+    audio_path = os.path.splitext(video_path)[0] + ".wav"
     subprocess.run(["ffmpeg", "-i", video_path, "-y", audio_path])
     
     emotion = predict_emotion(video_path, audio_path)

@@ -30,7 +30,9 @@ def construct_feature_vector(video_path, audio_path):
     video_name = os.path.basename(video_path)
 
     run_openface(video_path, csv_dir)
-    csv_name = video_name.replace(".mp4", ".csv")
+    # OpenFace names its output after the input's basename regardless of the
+    # source container, so derive it the same way instead of assuming .mp4.
+    csv_name = os.path.splitext(video_name)[0] + ".csv"
     csv_path = os.path.join(csv_dir, csv_name)
 
     df = pd.read_csv(csv_path)
@@ -87,9 +89,9 @@ def construct_feature_vector(video_path, audio_path):
         list_skew.append(df[col].skew())
 
     
-    audio_name = video_name.replace(".mp4", ".wav")
-    audio_csv = os.path.join(audio_path, audio_name)
-    audio_features = smile.process_file(audio_csv).values.flatten().tolist()
+    # audio_path is already the full path to the extracted .wav (computed by
+    # the caller) — it is a file, not a directory to join against.
+    audio_features = smile.process_file(audio_path).values.flatten().tolist()
 
     # Total list
     total_list = (list_means + list_std + list_max + list_min +

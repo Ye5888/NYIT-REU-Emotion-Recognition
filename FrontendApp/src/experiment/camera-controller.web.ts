@@ -5,8 +5,9 @@
  * web it could give us a preview and nothing else. These are standard browser
  * APIs and cost no dependency.
  *
- * Video only. Audio would mean a second permission prompt for a modality
- * nothing downstream consumes yet.
+ * Video + audio: /predict's feature vector is half openSMILE audio features,
+ * so a silent track isn't optional here. This is a second permission prompt
+ * (mic, alongside camera) — surface that to participants before `acquire()`.
  */
 import {
   CameraError,
@@ -17,7 +18,7 @@ import {
 
 const CONSTRAINTS: MediaStreamConstraints = {
   video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
-  audio: false,
+  audio: true,
 };
 
 /** Best available container, newest first; '' lets the browser choose. */
