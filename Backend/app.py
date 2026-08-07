@@ -690,11 +690,11 @@ def chatbot():
 @auth_required
 def start_learning():
     data = request.get_json()
-    topic = data["topic"]
+    topic = data.get("topic")
 
-    if not "topic":
+    if not topic:
         return jsonify({"error" : "topic required"}), 400
-    
+
     flashcard = generate_flashcard(topic)
     return jsonify(flashcard), 200
 

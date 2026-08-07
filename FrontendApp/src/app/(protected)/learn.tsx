@@ -10,11 +10,11 @@ import {
     TextInput,
     View,
 } from 'react-native';
-import { getAuthToken } from '@/experiment/api';
+import { API_BASE, getAuthToken } from '@/experiment/api';
 import { CameraPreview } from '@/components/experiment/camera-preview';
 
 
-const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'http://34.63.101.16:5000';
+const API_URL = API_BASE;
 
 type Flashcard = {
     term: string;
