@@ -24,10 +24,10 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
 
   useEffect(() => {
-    if(user){
-      setTimeout(() => {router.push('/consent')}, 3000)
+    if (user) {
+      setTimeout(() => { router.push('/choose') }, 1500)
     }
-  },[user]);
+  }, [user]);
 
   return (
     // <PlaceholderScreen
@@ -67,7 +67,7 @@ export default function LoginScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 value={username}
-                onChangeText={(input)=>{setUsername(input)}}
+                onChangeText={(input) => { setUsername(input) }}
               />
             </View>
 
@@ -81,24 +81,27 @@ export default function LoginScreen() {
                 secureTextEntry
                 autoCapitalize="none"
                 value={password}
-                onChangeText={(input)=>{setPassword(input)}}
+                onChangeText={(input) => { setPassword(input) }}
               />
             </View>
 
-            <Pressable style={styles.loginButton} onPress={async ()=>{
-                const user = await loginUser({username:username, password:password});
-                if (user?.token) setAuthToken(user.token);
-                setUser(user ? user : null);
-              }}>
+            <Pressable style={styles.loginButton} onPress={async () => {
+              const user = await loginUser({ username: username, password: password });
+              if (user?.token) {
+                setAuthToken(user.token);
+                sessionStorage.setItem('authToken', user.token);
+              }
+              setUser(user ? user : null);
+            }}>
               <Text style={styles.loginButtonText}>
                 Log In
               </Text>
             </Pressable>
-            
+
             <Pressable onPress={() => router.push('/signup')}>
               <Text style={styles.signupText}>{"Don't have an account? Sign up"}</Text>
             </Pressable>
-              { user ? <Text>Logged In!</Text> : user === null ? <Text>failed to log in</Text> : <></>}
+            {user ? <Text>Logged In!</Text> : user === null ? <Text>failed to log in</Text> : <></>}
           </View>
         </View>
       </KeyboardAvoidingView>
@@ -107,78 +110,78 @@ export default function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: "#FFFFFF",
-    },
+  container: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+  },
 
-    content: {
-        flex: 1,
-        justifyContent: "center",
-        paddingHorizontal: 28,
-    },
+  content: {
+    flex: 1,
+    justifyContent: "center",
+    paddingHorizontal: 28,
+  },
 
-    header: {
-        marginBottom: 40,
-    },
+  header: {
+    marginBottom: 40,
+  },
 
-    title: {
-        fontSize: 34,
-        fontWeight: "700",
-        color: "#111111",
-        marginBottom: 10,
-    },
+  title: {
+    fontSize: 34,
+    fontWeight: "700",
+    color: "#111111",
+    marginBottom: 10,
+  },
 
-    subtitle: {
-        fontSize: 16,
-        color: "#777777",
-        lineHeight: 24,
-    },
+  subtitle: {
+    fontSize: 16,
+    color: "#777777",
+    lineHeight: 24,
+  },
 
-    form: {
-        gap: 22,
-    },
+  form: {
+    gap: 22,
+  },
 
-    inputGroup: {
-        gap: 8,
-    },
+  inputGroup: {
+    gap: 8,
+  },
 
-    label: {
-        fontSize: 15,
-        fontWeight: "600",
-        color: "#222222",
-    },
+  label: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#222222",
+  },
 
-    input: {
-        height: 54,
-        borderWidth: 1,
-        borderColor: "#D6D6D6",
-        borderRadius: 10,
-        paddingHorizontal: 16,
-        fontSize: 16,
-        color: "#111111",
-        backgroundColor: "#FAFAFA",
-    },
+  input: {
+    height: 54,
+    borderWidth: 1,
+    borderColor: "#D6D6D6",
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: "#111111",
+    backgroundColor: "#FAFAFA",
+  },
 
-    loginButton: {
-        height: 54,
-        borderRadius: 10,
-        backgroundColor: "#111111",
-        alignItems: "center",
-        justifyContent: "center",
-        marginTop: 8,
-    },
+  loginButton: {
+    height: 54,
+    borderRadius: 10,
+    backgroundColor: "#111111",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+  },
 
-    loginButtonText: {
-        color: "#FFFFFF",
-        fontSize: 16,
-        fontWeight: "600",
-    },
+  loginButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
+  },
 
-    signupText: {
-      color: "#777777",
-      fontSize: 14,
-      textAlign: "center" as const,
-      marginTop: 12,
-    },
+  signupText: {
+    color: "#777777",
+    fontSize: 14,
+    textAlign: "center" as const,
+    marginTop: 12,
+  },
 });
