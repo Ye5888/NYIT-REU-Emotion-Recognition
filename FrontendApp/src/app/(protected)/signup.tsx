@@ -1,22 +1,24 @@
 import { useRouter } from 'expo-router';
 import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useState } from 'react';
-import { setAuthToken } from '@/experiment/api';
+import { API_BASE, setAuthToken } from '@/experiment/api';
 
-const API_URL = process.env.EXPO_PUBLIC_API_BASE || 'http://34.63.101.16:5000';
+const API_URL = API_BASE;
 
 export default function SignupScreen() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [status, setStatus] = useState<null | 'success' | 'error'>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSignup = async () => {
     try {
       const response = await fetch(`${API_URL}/signup`, {
         method: "POST",
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, password, invite_code: inviteCode }),
       });
 
       const result = await response.json();
@@ -27,9 +29,11 @@ export default function SignupScreen() {
         setTimeout(() => router.push('/choose'), 1500);
       } else {
         setStatus('error');
+        setErrorMessage(result.error || null);
       }
     } catch (error) {
       setStatus('error');
+      setErrorMessage(null);
     }
   };
 
@@ -52,12 +56,17 @@ export default function SignupScreen() {
             <TextInput style={styles.input} placeholder="Choose a password" placeholderTextColor="#999" secureTextEntry autoCapitalize="none" value={password} onChangeText={setPassword} />
           </View>
 
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Invite Code (optional)</Text>
+            <TextInput style={styles.input} placeholder="Only needed if the study team gave you one" placeholderTextColor="#999" autoCapitalize="none" value={inviteCode} onChangeText={setInviteCode} />
+          </View>
+
           <Pressable style={styles.button} onPress={handleSignup}>
             <Text style={styles.buttonText}>Sign Up</Text>
           </Pressable>
 
           {status === 'success' && <Text>Account created! Redirecting...</Text>}
-          {status === 'error' && <Text>Signup failed. Try a different username.</Text>}
+          {status === 'error' && <Text>{errorMessage || 'Signup failed. Try a different username.'}</Text>}
 
           <Pressable onPress={() => router.push('/login')}>
             <Text style={styles.loginLink}>Already have an account? Log in</Text>

@@ -65,7 +65,7 @@ export default function LearnScreen() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`,
                 },
-                body: JSON.stringify({ topic }),
+                body: JSON.stringify({ topic, session_id: sessionKeyRef.current }),
             });
             const card = await res.json();
             console.log('Response:', res.status, card);
@@ -161,8 +161,7 @@ export default function LearnScreen() {
                 body: JSON.stringify({
                     topic,
                     correct: isCorrect,
-                    correct_count: newCorrect,
-                    total_count: newTotal,
+                    session_id: sessionKeyRef.current,
                     emotion,
                 }),
             });

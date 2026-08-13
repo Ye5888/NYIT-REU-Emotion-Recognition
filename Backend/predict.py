@@ -111,8 +111,11 @@ def construct_feature_vector(video_path, audio_path):
 
 
 def run_openface(video_path, csv_output_dir):
-    openface_bin = "/home/yesongquing/OpenFace/build/bin/FeatureExtraction"
-    
+    # Was hardcoded to one machine's home directory, so nobody else could run
+    # this. Defaults to that same path (today's actual deployment) but is
+    # overridable per-environment.
+    openface_bin = os.getenv("OPENFACE_BIN", "/home/yesongquing/OpenFace/build/bin/FeatureExtraction")
+
     subprocess.run([
         openface_bin,
         "-f", os.path.abspath(video_path),

@@ -29,6 +29,17 @@ VIDEO_DIR = os.path.join(os.path.dirname(__file__), VIDEO_SUBDIR)
 
 ### USERS
 
+# password is a bcrypt hash, not plaintext, but it's still a credential that
+# has no business leaving the server, and token is a live, working JWT —
+# whoever reads it can act as that user until it expires. Strip both from
+# every user doc before it gets serialized, not just the one route that
+# prompted this.
+def _sanitize_user(data):
+    data = dict(data)
+    data.pop("password", None)
+    data.pop("token", None)
+    return data
+
 @app.route("/users", methods=["GET"])
 @auth_required
 def get_all_users():
@@ -36,7 +47,7 @@ def get_all_users():
     docs = users_ref.stream()
     users = []
     for doc in docs:
-        data = doc.to_dict()
+        data = _sanitize_user(doc.to_dict())
         users.append(data)
     return jsonify(users), 200
 
@@ -47,7 +58,7 @@ def get_user(user_id):
     doc = doc_ref.get()
     if not doc.exists:
         return jsonify({"error": "user not found"}), 404
-    user_data = doc.to_dict()
+    user_data = _sanitize_user(doc.to_dict())
     user_data["id"] = doc.id
     if "name" in user_data:
         user_data["name"] = decrypt(user_data["name"])
@@ -691,14 +702,30 @@ def chatbot():
 def start_learning():
     data = request.get_json()
     topic = data.get("topic")
+    session_id = data.get("session_id")
 
     if not topic:
         return jsonify({"error" : "topic required"}), 400
+    if not session_id:
+        return jsonify({"error": "session_id required"}), 400
 
     try:
         flashcard = generate_flashcard(topic)
     except Exception as e:
         return jsonify({"error": "Could not generate a flashcard right now. Please try again shortly."}), 502
+
+    # Correctness was previously taken from correct_count/total_count in the
+    # request body and never saved anywhere -- the server trusted whatever
+    # the client claimed, and the Learn flow produced no data to actually use
+    # afterward. This doc is the authoritative counter /learning/answer
+    # increments; the client's own running total is display-only now.
+    db.collection("learning_sessions").document(session_id).set({
+        "userId": g.current_user_id,
+        "topic": topic,
+        "correctCount": 0,
+        "totalCount": 0,
+        "startedAt": datetime.now(timezone.utc),
+    })
 
     return jsonify(flashcard), 200
 
@@ -709,11 +736,32 @@ def submit_learning_answer():
     topic = data.get("topic")
     correct = data.get("correct")
     emotion = data.get("emotion")
-    correct_count = data.get("correct_count", 0)
-    total_count = data.get("total_count", 0)
-    
+    session_id = data.get("session_id")
+
+    if not session_id:
+        return jsonify({"error": "session_id required"}), 400
+
+    doc_ref = db.collection("learning_sessions").document(session_id)
+    snapshot = doc_ref.get()
+    if not snapshot.exists:
+        return jsonify({"error": "unknown learning session"}), 404
+    session_data = snapshot.to_dict() or {}
+    if session_data.get("userId") != g.current_user_id:
+        return jsonify({"error": "forbidden"}), 403
+
+    total_count = session_data.get("totalCount", 0) + 1
+    correct_count = session_data.get("correctCount", 0) + (1 if correct else 0)
     accuracy = correct_count / total_count if total_count > 0 else 0
-    if total_count >= 10 and accuracy >= 0.8:
+    complete = total_count >= 10 and accuracy >= 0.8
+
+    doc_ref.update({
+        "totalCount": total_count,
+        "correctCount": correct_count,
+        "updatedAt": datetime.now(timezone.utc),
+        **({"completedAt": datetime.now(timezone.utc), "status": "complete"} if complete else {}),
+    })
+
+    if complete:
         return jsonify({"status": "complete", "accuracy": accuracy}), 200
 
     try:
@@ -737,7 +785,19 @@ def login():
     user_doc = users_ref[0]
     user_data = user_doc.to_dict()
     stored_hash = user_data.get("password", "")
-    if not bcrypt.checkpw(password.encode(), stored_hash.encode()):
+    try:
+        valid = bcrypt.checkpw(password.encode(), stored_hash.encode())
+    except ValueError:
+        # Predates bcrypt: stored_hash isn't a valid bcrypt hash at all, so
+        # checkpw raises instead of just returning False, and that raise was
+        # uncaught -- every such account 500'd on login instead of getting a
+        # normal invalid-password response. Fall back to a plain comparison,
+        # and migrate the account to a real hash the moment it succeeds.
+        valid = password == stored_hash
+        if valid:
+            new_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+            db.collection("users").document(user_doc.id).update({"password": new_hash})
+    if not valid:
         return jsonify({"error": "invalid password"}), 401
     existing_token = user_data.get("token")
     if existing_token:
@@ -757,17 +817,40 @@ def login():
 
 @app.route("/signup", methods=["POST"])
 def signup():
+    # Open by default -- this repo is meant to be cloned and run by anyone,
+    # and requiring a secret out of the box would be a bad first-run
+    # experience. Set SIGNUP_CODE in .env to gate a specific deployment (e.g.
+    # while actually running the study) without changing this default for
+    # everyone else's copy. Either way, the /users leak above (password hash
+    # + live token serialized as-is) is fixed regardless of this setting.
     data = request.get_json()
+    required_code = os.getenv("SIGNUP_CODE")
+    if required_code and data.get("invite_code") != required_code:
+        return jsonify({"error": "invalid invite code"}), 403
+
     username = data.get("username")
     password = data.get("password")
     existing = db.collection("users").where("username", "==", username).get()
 
     if existing:
         return jsonify({"error": "username already taken"}), 409
-    
-    data["password"] = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
-    user_ref = db.collection('users').add(data)
+    # Built explicitly rather than writing `data` as-is: the request body was
+    # going straight into the doc, so a client could set any field it wanted
+    # (e.g. a token, or anything else a route trusts unquestioned). Also
+    # skipped the encrypt() add_user applies to name/email, which then made
+    # get_user's decrypt() throw on a plaintext value it assumed was
+    # encrypted -- so those two now go through the same encrypt() as add_user.
+    user_data = {
+        "username": username,
+        "password": bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
+    }
+    if "name" in data:
+        user_data["name"] = encrypt(data["name"])
+    if "email" in data:
+        user_data["email"] = encrypt(data["email"])
+
+    user_ref = db.collection('users').add(user_data)
     token = generate_jwt(user_ref[-1].id)
     db.collection("auth_tokens").add({
         "JWT": token,
@@ -778,26 +861,31 @@ def signup():
 
 @app.route("/logout", methods=["GET"])
 def logout():
+    # Everything past token extraction used to be nested inside the `else`,
+    # so it only ran for a bare token with no "Bearer " prefix -- the normal
+    # `Authorization: Bearer <token>` case fell through the end of the
+    # function and returned None, which Flask can't turn into a response.
     auth_header = request.headers.get("Authorization", "")
     if " " in auth_header:
         token = auth_header.split(" ")[1]
     else:
         token = auth_header
-        if not token:
-            return jsonify({"error": "no token provided"}), 401
-        try:
-            payload = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
-        except Exception:
-            return jsonify({"error": "invalid or expired token"}), 401
-        user_id = payload.get("sub") or payload.get("user_id")
-        if not user_id:
-            return jsonify({"error": "token missing user id"}), 401
-        db.collection("users").document(user_id).update({"token": firestore.DELETE_FIELD})
-        tokens_ref = db.collection("auth_tokens").where("JWT", "==", token).stream()
-        for doc in tokens_ref:
-            doc.reference.delete()
-        return jsonify({"message": "logged out successfully"}), 200
-    
+
+    if not token:
+        return jsonify({"error": "no token provided"}), 401
+    try:
+        payload = jwt.decode(token, os.getenv("JWT_SECRET"), algorithms=["HS256"])
+    except Exception:
+        return jsonify({"error": "invalid or expired token"}), 401
+    user_id = payload.get("sub") or payload.get("user_id")
+    if not user_id:
+        return jsonify({"error": "token missing user id"}), 401
+    db.collection("users").document(user_id).update({"token": firestore.DELETE_FIELD})
+    tokens_ref = db.collection("auth_tokens").where("JWT", "==", token).stream()
+    for doc in tokens_ref:
+        doc.reference.delete()
+    return jsonify({"message": "logged out successfully"}), 200
+
 
 # NOTE: the missing leading slash here raised ValueError at import, so the whole
 # server failed to start — not just this endpoint. Everything else about this
@@ -808,11 +896,20 @@ def logout():
 def predict():
     if "video" not in request.files:
         return jsonify({"error": "no video file provided"}), 400
-    
-    video = request.files["video"]
 
-    video_filename = secure_filename(video.filename)
-    video_path = os.path.join("uploads/videos", video_filename)
+    video = request.files["video"]
+    session_id = request.form.get("session_id")
+
+    # Namespaced by caller, same idea as video_part_path above: the filename
+    # alone (e.g. "clip-1.webm") repeats every session, so two people
+    # answering at once could overwrite each other's clip before either
+    # request finished reading it. session_id is the finer-grained id when
+    # present (matches labels being filed under it too); g.current_user_id
+    # is always available as a fallback so this is never unnamespaced.
+    namespace = secure_filename(session_id) if session_id else secure_filename(g.current_user_id)
+    video_filename = f"{namespace}-{secure_filename(video.filename)}"
+    os.makedirs(VIDEO_DIR, exist_ok=True)
+    video_path = os.path.join(VIDEO_DIR, video_filename)
     video.save(video_path)
 
     # .replace(".mp4", ...) was a no-op for any other container (the web
@@ -824,9 +921,11 @@ def predict():
     
     emotion = predict_emotion(video_path, audio_path)
 
-    session_id = request.form.get("session_id")
     if session_id:
-        db.collection("sessions").document(session_id).collection("labels").add({
+        doc_ref, error = session_owned_by_caller(session_id)
+        if error:
+            return error
+        doc_ref.collection("labels").add({
         "derivedLabel": emotion,
         "videoSegmentUrl": video_path,
         "confidence": 0.0,  # add actual confidence if available
@@ -843,4 +942,10 @@ def predict():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # debug=True opens Werkzeug's interactive debugger on every unhandled
+    # traceback — on host='0.0.0.0' that's an in-browser Python shell reachable
+    # from the public IP, on a box that holds the Firebase service account key.
+    # `python3 app.py` is still a bare Werkzeug dev server even with debug off
+    # (it says so itself); run it behind gunicorn for anything reachable from
+    # outside — see the run command in requirements.txt's neighboring note.
+    app.run(debug=False, host='0.0.0.0', port=5000)
