@@ -768,17 +768,15 @@ def login():
 
 @app.route("/signup", methods=["POST"])
 def signup():
-    # Fails closed: with SIGNUP_CODE unset, every signup is rejected rather
-    # than silently left open, which is exactly the state that let anyone
-    # register — and, combined with the /users leak above, read other
-    # participants' live session tokens. Share the code out of band with
-    # actual study participants.
-    required_code = os.getenv("SIGNUP_CODE")
-    if not required_code:
-        return jsonify({"error": "signup is not currently open"}), 503
-
+    # Open by default -- this repo is meant to be cloned and run by anyone,
+    # and requiring a secret out of the box would be a bad first-run
+    # experience. Set SIGNUP_CODE in .env to gate a specific deployment (e.g.
+    # while actually running the study) without changing this default for
+    # everyone else's copy. Either way, the /users leak above (password hash
+    # + live token serialized as-is) is fixed regardless of this setting.
     data = request.get_json()
-    if data.get("invite_code") != required_code:
+    required_code = os.getenv("SIGNUP_CODE")
+    if required_code and data.get("invite_code") != required_code:
         return jsonify({"error": "invalid invite code"}), 403
 
     username = data.get("username")
