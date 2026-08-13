@@ -57,8 +57,8 @@ export default function SignupScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Invite Code</Text>
-            <TextInput style={styles.input} placeholder="Provided by the study team" placeholderTextColor="#999" autoCapitalize="none" value={inviteCode} onChangeText={setInviteCode} />
+            <Text style={styles.label}>Invite Code (optional)</Text>
+            <TextInput style={styles.input} placeholder="Only needed if the study team gave you one" placeholderTextColor="#999" autoCapitalize="none" value={inviteCode} onChangeText={setInviteCode} />
           </View>
 
           <Pressable style={styles.button} onPress={handleSignup}>
