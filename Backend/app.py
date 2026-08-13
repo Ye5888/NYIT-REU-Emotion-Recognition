@@ -29,6 +29,17 @@ VIDEO_DIR = os.path.join(os.path.dirname(__file__), VIDEO_SUBDIR)
 
 ### USERS
 
+# password is a bcrypt hash, not plaintext, but it's still a credential that
+# has no business leaving the server, and token is a live, working JWT —
+# whoever reads it can act as that user until it expires. Strip both from
+# every user doc before it gets serialized, not just the one route that
+# prompted this.
+def _sanitize_user(data):
+    data = dict(data)
+    data.pop("password", None)
+    data.pop("token", None)
+    return data
+
 @app.route("/users", methods=["GET"])
 @auth_required
 def get_all_users():
@@ -36,7 +47,7 @@ def get_all_users():
     docs = users_ref.stream()
     users = []
     for doc in docs:
-        data = doc.to_dict()
+        data = _sanitize_user(doc.to_dict())
         users.append(data)
     return jsonify(users), 200
 
@@ -47,7 +58,7 @@ def get_user(user_id):
     doc = doc_ref.get()
     if not doc.exists:
         return jsonify({"error": "user not found"}), 404
-    user_data = doc.to_dict()
+    user_data = _sanitize_user(doc.to_dict())
     user_data["id"] = doc.id
     if "name" in user_data:
         user_data["name"] = decrypt(user_data["name"])
@@ -757,14 +768,27 @@ def login():
 
 @app.route("/signup", methods=["POST"])
 def signup():
+    # Fails closed: with SIGNUP_CODE unset, every signup is rejected rather
+    # than silently left open, which is exactly the state that let anyone
+    # register — and, combined with the /users leak above, read other
+    # participants' live session tokens. Share the code out of band with
+    # actual study participants.
+    required_code = os.getenv("SIGNUP_CODE")
+    if not required_code:
+        return jsonify({"error": "signup is not currently open"}), 503
+
     data = request.get_json()
+    if data.get("invite_code") != required_code:
+        return jsonify({"error": "invalid invite code"}), 403
+
     username = data.get("username")
     password = data.get("password")
     existing = db.collection("users").where("username", "==", username).get()
 
     if existing:
         return jsonify({"error": "username already taken"}), 409
-    
+
+    data.pop("invite_code", None)
     data["password"] = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     user_ref = db.collection('users').add(data)
@@ -826,7 +850,10 @@ def predict():
 
     session_id = request.form.get("session_id")
     if session_id:
-        db.collection("sessions").document(session_id).collection("labels").add({
+        doc_ref, error = session_owned_by_caller(session_id)
+        if error:
+            return error
+        doc_ref.collection("labels").add({
         "derivedLabel": emotion,
         "videoSegmentUrl": video_path,
         "confidence": 0.0,  # add actual confidence if available
@@ -843,4 +870,10 @@ def predict():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    # debug=True opens Werkzeug's interactive debugger on every unhandled
+    # traceback — on host='0.0.0.0' that's an in-browser Python shell reachable
+    # from the public IP, on a box that holds the Firebase service account key.
+    # `python3 app.py` is still a bare Werkzeug dev server even with debug off
+    # (it says so itself); run it behind gunicorn for anything reachable from
+    # outside — see the run command in requirements.txt's neighboring note.
+    app.run(debug=False, host='0.0.0.0', port=5000)
