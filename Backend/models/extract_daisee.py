@@ -1,4 +1,5 @@
 import os
+import csv
 import subprocess
 import pandas as pd
 import numpy as np
@@ -16,14 +17,9 @@ OPENFACE_BIN = os.getenv("OPENFACE_BIN", "/home/yesongquing/OpenFace/build/bin/F
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # No audio extraction here -- CREMA-D was audio-visual, DAiSEE is video-only
-# webcam recordings of students during e-learning. Don't assume the clips
-# even carry a usable audio track; verify first with, e.g.:
+# webcam recordings of students during e-learning. Confirmed empirically:
 #   ffprobe -v error -show_entries stream=codec_type -of csv=p=0 <clip>.avi
-# If that prints a video-only stream (no `audio` line), there's nothing to
-# extract. If it does print audio, listen to a couple of samples before
-# trusting it -- webcam audio in an "in the wild" dataset could easily be
-# silent or pure room noise, and openSMILE will still happily emit 988
-# numbers from that either way.
+# prints only `video` for DAiSEE clips -- no audio stream exists at all.
 
 def run_openface(video_path, csv_output_dir):
     subprocess.run([
@@ -36,6 +32,8 @@ def extract_features(df):
     df.columns = df.columns.str.strip()
     au_cols = [col for col in df.columns
                if col.startswith('AU') and (col.endswith('_r') or col.endswith('_c'))]
+    if not au_cols:
+        raise ValueError("no AU columns in OpenFace output")
 
     lists = {stat: [] for stat in ['means','std','max','min','q1','median','q3',
                                     'argmin','argmax','range','lower_iqr','upper_iqr',
@@ -99,6 +97,17 @@ def get_dominant_emotion(row):
     tied = [name for name in EMOTION_PRIORITY if scores[name] == best]
     return tied[0], len(tied) > 1
 
+STAT_NAMES = ['mean','std','max','min','q1','median','q3','argmin','argmax',
+              'range','lower_iqr','upper_iqr','iqr','kurtosis','slope',
+              'intercept','p_value','std_err','r_squared','skew']
+
+def build_column_names(au_cols):
+    col_names = ['ClipID']
+    for stat in STAT_NAMES:
+        col_names.extend([f"{col}_{stat}" for col in au_cols])
+    col_names.append('Emotion')
+    return col_names
+
 # process each split
 for split in ['Train', 'Validation', 'Test']:
     labels_file = os.path.join(LABELS_DIR, f"{split}Labels.csv")
@@ -113,58 +122,79 @@ for split in ['Train', 'Validation', 'Test']:
 
     labels_dict = dict(zip(labels_df['ClipID'], labels_df['Emotion']))
 
-    rows = []
-    cols_order = None
     csv_dir = os.path.join(OUTPUT_DIR, split, "csvs")
     os.makedirs(csv_dir, exist_ok=True)
-
     split_dir = os.path.join(DATASET_DIR, split)
+    out_path = os.path.join(OUTPUT_DIR, f"{split}_features.csv")
 
-    for subject in os.listdir(split_dir):
-        subject_dir = os.path.join(split_dir, subject)
-        if not os.path.isdir(subject_dir):
-            continue
-        for clip_folder in os.listdir(subject_dir):
-            clip_id = clip_folder + ".avi"
-            if clip_id not in labels_dict:
+    # Resume support: a crash used to lose an entire split's work, because
+    # nothing was written to out_path until every clip in the split had
+    # finished -- the crash that prompted this rewrite lost hours of work
+    # for exactly that reason. Now every clip is appended and flushed
+    # immediately, and re-running after a crash picks up from whatever's
+    # already in {split}_features.csv instead of starting the split over.
+    already_done = set()
+    col_names = None
+    if os.path.exists(out_path):
+        with open(out_path, newline='') as f:
+            reader = csv.reader(f)
+            header = next(reader, None)
+            if header:
+                col_names = header
+                clip_idx = header.index('ClipID')
+                for row in reader:
+                    if row:
+                        already_done.add(row[clip_idx])
+        print(f"{split}: resuming, {len(already_done)} clips already recorded in {out_path}")
+
+    processed = 0
+    skipped = 0
+
+    with open(out_path, 'a', newline='') as out_file:
+        writer = csv.writer(out_file)
+
+        for subject in sorted(os.listdir(split_dir)):
+            subject_dir = os.path.join(split_dir, subject)
+            if not os.path.isdir(subject_dir):
                 continue
+            for clip_folder in sorted(os.listdir(subject_dir)):
+                clip_id = clip_folder + ".avi"
+                if clip_id not in labels_dict or clip_id in already_done:
+                    continue
 
-            video_path = os.path.join(subject_dir, clip_folder, clip_id)
-            if not os.path.exists(video_path):
-                continue
+                video_path = os.path.join(subject_dir, clip_folder, clip_id)
+                if not os.path.exists(video_path):
+                    continue
 
-            emotion = labels_dict[clip_id]
+                emotion = labels_dict[clip_id]
+                csv_path = os.path.join(csv_dir, clip_folder + ".csv")
 
-            # run openface
-            run_openface(video_path, csv_dir)
+                # Skip re-running OpenFace if this clip's output already
+                # exists from an earlier (possibly crashed) run -- that's
+                # the slow part, no need to redo it on a resume.
+                if not os.path.exists(csv_path):
+                    run_openface(video_path, csv_dir)
 
-            csv_name = clip_folder + ".csv"
-            csv_path = os.path.join(csv_dir, csv_name)
-            if not os.path.exists(csv_path):
-                continue
+                # A single bad clip (OpenFace produced an empty or malformed
+                # CSV -- no face detected, corrupted frame, etc.) used to
+                # crash the entire multi-hour run via an uncaught
+                # pandas.errors.EmptyDataError. Skip and log instead.
+                try:
+                    df = pd.read_csv(csv_path)
+                    visual_features, au_cols = extract_features(df)
+                    if any(pd.isna(v) for v in visual_features):
+                        raise ValueError("NaN in extracted features")
+                except Exception as e:
+                    skipped += 1
+                    print(f"{split}: skipping {clip_id} ({type(e).__name__}: {e})")
+                    continue
 
-            df = pd.read_csv(csv_path)
+                if col_names is None:
+                    col_names = build_column_names(au_cols)
+                    writer.writerow(col_names)
 
-            visual_features, au_cols = extract_features(df)
+                writer.writerow([clip_id] + visual_features + [emotion])
+                out_file.flush()
+                processed += 1
 
-            if cols_order is None:
-                cols_order = au_cols
-
-            total = visual_features + [emotion]
-            rows.append(total)
-
-    # build column names from first processed file
-    if rows and cols_order:
-        stat_names = ['mean','std','max','min','q1','median','q3','argmin','argmax',
-                      'range','lower_iqr','upper_iqr','iqr','kurtosis','slope',
-                      'intercept','p_value','std_err','r_squared','skew']
-        col_names = []
-        for stat in stat_names:
-            col_names.extend([f"{col}_{stat}" for col in cols_order])
-        col_names += ['Emotion']
-
-        feature_matrix = pd.DataFrame(rows, columns=col_names)
-        feature_matrix = feature_matrix.dropna(axis=0)
-        out_path = os.path.join(OUTPUT_DIR, f"{split}_features.csv")
-        feature_matrix.to_csv(out_path, index=False)
-        print(f"{split}: {len(feature_matrix)} clips saved to {out_path}")
+    print(f"{split}: {processed} clips newly processed, {skipped} skipped, saved to {out_path}")

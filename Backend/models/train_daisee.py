@@ -25,7 +25,10 @@ np.random.seed(SEED)
 def load_split(split):
     path = os.path.join(OUTPUT_DIR, f"{split}_features.csv")
     df = pd.read_csv(path)
-    X = df.drop(columns=['Emotion']).values.astype(float)
+    # ClipID is now in the extracted CSVs (needed for extract_daisee.py's
+    # resume support) -- an identifier, not a feature, so drop it alongside
+    # Emotion rather than trying to cast a clip filename to float.
+    X = df.drop(columns=['ClipID', 'Emotion']).values.astype(float)
     y = df['Emotion'].values
     return X, y
 
