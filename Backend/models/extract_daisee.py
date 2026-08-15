@@ -71,6 +71,20 @@ def extract_features(df):
     total = []
     for stat in lists:
         total.extend(lists[stat])
+
+    # kurtosis/skewness (and occasionally r_squared, for a constant y) are
+    # mathematically undefined for a column with zero variance -- their
+    # formulas divide by it. OpenFace emits both continuous (_r) and binary
+    # presence (_c) columns per Action Unit, and it's routine for a _c
+    # column to never fire (or always fire) across a whole 10-second clip,
+    # so at least one constant column per clip turns out to be the common
+    # case, not the exception. Previously this NaN only got noticed when
+    # the *entire* dataset was assembled and .dropna() silently discarded
+    # nearly every row at the very end. Treating "no defined shape for a
+    # flat signal" as 0 is a standard, defensible convention -- it's not
+    # hiding a data problem, it's the correct value for a degenerate case.
+    total = [0.0 if isinstance(v, float) and np.isnan(v) else v for v in total]
+
     return total, au_cols
 
 # DAiSEE gives four separate 0-3 intensity scores per clip, not one label.
