@@ -17,3 +17,4 @@ torch
 # Run with `gunicorn -w 2 -b 0.0.0.0:5000 app:app` instead of `python3 app.py`
 # for anything reachable from outside the box — see the note by app.run().
 gunicorn
+imbalanced-learn

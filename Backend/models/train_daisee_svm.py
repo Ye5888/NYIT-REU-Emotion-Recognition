@@ -3,6 +3,7 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.metrics import classification_report, accuracy_score, f1_score
+from imblearn.over_sampling import SMOTE
 import os
 import pandas as pd
 
@@ -21,6 +22,7 @@ def load_split(split):
 
 
 
+
 X_train, y_train = load_split("Train")
 X_validation, y_validation = load_split("Validation")
 X_test, y_test = load_split("Test")
@@ -30,6 +32,8 @@ X_train_scaled = scaler.fit_transform(X_train)
 X_validation_scaled = scaler.transform(X_validation)
 X_test_scaled = scaler.transform(X_test)
 
+smote = SMOTE(random_state=42, k_neighbors=5)
+X_train_resampled, y_train_resampled = smote.fit_resample(X_train_scaled, y_train)
 
 candidate_Cs = [0.1, 1, 10, 100]
 best_C = None
@@ -38,7 +42,7 @@ best_model = None
 
 for c in candidate_Cs:
     model = SVC(kernel = 'rbf', C = c, gamma = 'scale')
-    model.fit(X_train_scaled, y_train)
+    model.fit(X_train_resampled, y_train_resampled)
 
     val_pred = model.predict(X_validation_scaled)
     val_score = f1_score(y_validation, val_pred, average='macro')
