@@ -149,12 +149,24 @@ for split in ['Train', 'Validation', 'Test']:
     # already in {split}_features.csv instead of starting the split over.
     already_done = set()
     col_names = None
+    # au_cols (and therefore the header) is only ever established from the
+    # first clip successfully processed in a split. Nothing previously
+    # checked that every later clip actually produced the same number of AU
+    # columns -- OpenFace can emit a different AU set for an odd clip across
+    # a ~9000-clip, multi-restart run, and that row would silently get
+    # written with a different field count than the header. That's exactly
+    # what caused pandas.errors.ParserError: "Expected 702 fields ... saw
+    # 1309" when train_daisee.py later tried to read the file. Tracking the
+    # expected feature-vector length lets every subsequent clip be checked
+    # before it's written, instead of after the fact.
+    expected_feature_len = None
     if os.path.exists(out_path):
         with open(out_path, newline='') as f:
             reader = csv.reader(f)
             header = next(reader, None)
             if header:
                 col_names = header
+                expected_feature_len = len(header) - 2  # minus ClipID, Emotion
                 clip_idx = header.index('ClipID')
                 for row in reader:
                     if row:
@@ -198,6 +210,16 @@ for split in ['Train', 'Validation', 'Test']:
                     visual_features, au_cols = extract_features(df)
                     if any(pd.isna(v) for v in visual_features):
                         raise ValueError("NaN in extracted features")
+                    # Guard against a clip whose OpenFace output has a
+                    # different AU column count than whatever clip
+                    # established this split's header -- writing it anyway
+                    # would silently corrupt the CSV's column alignment.
+                    if expected_feature_len is not None and len(visual_features) != expected_feature_len:
+                        raise ValueError(
+                            f"feature count mismatch: expected {expected_feature_len}, "
+                            f"got {len(visual_features)} -- OpenFace likely produced a "
+                            f"different AU column set for this clip"
+                        )
                 except Exception as e:
                     skipped += 1
                     print(f"{split}: skipping {clip_id} ({type(e).__name__}: {e})")
@@ -206,6 +228,7 @@ for split in ['Train', 'Validation', 'Test']:
                 if col_names is None:
                     col_names = build_column_names(au_cols)
                     writer.writerow(col_names)
+                    expected_feature_len = len(visual_features)
 
                 writer.writerow([clip_id] + visual_features + [emotion])
                 out_file.flush()
