@@ -14,11 +14,11 @@ os.makedirs(ARTIFACTS_DIR, exist_ok=True)
 def load_split(split):
     path = os.path.join(OUTPUT_DIR, f"{split}_features.csv")
     df = pd.read_csv(path, on_bad_lines="warn")
-    
+
     X = df.drop(columns=["ClipID", "Emotion"]).values.astype(float)
     y = df["Emotion"].values
     return X, y
-    
+
 
 
 X_train, y_train = load_split("Train")
@@ -39,10 +39,10 @@ best_model = None
 for c in candidate_Cs:
     model = SVC(kernel = 'rbf', C = c, gamma = 'scale')
     model.fit(X_train_scaled, y_train)
-    
+
     val_pred = model.predict(X_validation_scaled)
     val_score = f1_score(y_validation, val_pred, average='macro')
-    
+
     print(f"C={c}: Validation macro F1 = {val_score:.4f}")
 
     if val_score > best_val_score:
@@ -51,11 +51,10 @@ for c in candidate_Cs:
         best_model = model
 
 print(f"\nBest C: {best_C} (Validation macro F1: {best_val_score:.4f})")
-    
+
 
 
 y_pred = best_model.predict(X_test_scaled)
 
 print(accuracy_score(y_test, y_pred))
 print(classification_report(y_test, y_pred))
-
