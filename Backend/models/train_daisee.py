@@ -5,7 +5,6 @@ import torch
 import torch.nn as nn
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.metrics import classification_report
-from sklearn.utils.class_weight import compute_class_weight
 import joblib
 
 # No OpenFace/openSMILE/video paths here at all -- this used to re-run the
@@ -51,32 +50,6 @@ y_train_enc = le.fit_transform(y_train)
 y_val_enc = le.transform(y_val)
 y_test_enc = le.transform(y_test)
 
-# DAiSEE's labels skew heavily toward Engagement (~79% of clips in a typical
-# split, vs ~1% each for Confusion/Frustration -- see the comment above
-# EMOTION_PRIORITY in extract_daisee.py). An unweighted loss lets the model
-# minimize error by mostly just predicting Engagement and ignoring the rare
-# classes entirely -- that's exactly what happened on the first run: 74%
-# raw accuracy, but 0.00 precision/recall on Confusion and Frustration
-# (never predicted, not even once) and a macro F1 of 0.27. class_weight=
-# 'balanced' assigns each class a weight inversely proportional to how often
-# it appears in Train, so misclassifying a rare Confusion/Frustration clip
-# costs the loss as much as misclassifying several Engagement clips --
-# removing the incentive to just ignore the minority classes.
-class_names = le.classes_
-class_weights = compute_class_weight(
-    class_weight='balanced',
-    classes=np.arange(len(class_names)),
-    y=y_train_enc,
-)
-print("Class weights (Train):")
-for name, count, weight in zip(
-    class_names,
-    np.bincount(y_train_enc, minlength=len(class_names)),
-    class_weights,
-):
-    print(f"  {name:<12} count={count:<6} weight={weight:.3f}")
-class_weights_t = torch.FloatTensor(class_weights)
-
 # scale features
 scaler = StandardScaler()
 X_train = scaler.fit_transform(X_train)
@@ -111,7 +84,7 @@ class EmotionMLP(nn.Module):
 
 model = EmotionMLP(input_size=X_train.shape[1], num_classes=len(le.classes_))
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-criterion = nn.CrossEntropyLoss(weight=class_weights_t)
+criterion = nn.CrossEntropyLoss()
 
 # train, keeping the best validation checkpoint rather than whatever epoch
 # 100 happens to land on -- there was no early stopping or checkpointing at
