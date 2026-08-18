@@ -119,6 +119,10 @@ export default function LearnScreen() {
                 form.append('video', clip, `clip-${newTotal}.webm`);
                 form.append('session_id', sessionKeyRef.current);
                 form.append('student_message', message);
+                // Lets /predict skip the chatbot call entirely on a correct
+                // answer, instead of generating an explanation just to have
+                // the frontend throw it away below.
+                form.append('correct', String(isCorrect));
 
                 const token = getAuthToken();
                 const predictRes = await fetch(`${API_URL}/predict`, {

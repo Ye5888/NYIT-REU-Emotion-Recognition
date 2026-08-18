@@ -932,7 +932,15 @@ def predict():
         })
 
     student_message = request.form.get("student_message", "")
-    response = get_chatbot_response(student_message, emotion)
+    # The frontend only ever surfaces this on a wrong answer (right answers
+    # don't need an explanation) -- but this used to call the chatbot
+    # unconditionally regardless, paying for a real LLM call whose result
+    # got silently discarded on every correct answer.
+    # JS's String(true/false) sends lowercase "true"/"false", not Python's
+    # "True"/"False" -- comparing against the wrong casing here would have
+    # silently defeated this entirely, always calling the chatbot regardless.
+    correct = request.form.get("correct") == "true"
+    response = None if correct else get_chatbot_response(student_message, emotion)
 
     return jsonify({"emotion": emotion,
         "chatbot_response": response
