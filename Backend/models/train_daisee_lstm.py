@@ -109,6 +109,14 @@ for epoch in range(NUM_EPOCHS):
 print(f"\nBest validation accuracy: {best_val_acc:.4f}")
 model.load_state_dict(best_state)
 
+# Save the trained model BEFORE reporting on it -- a bug in the reporting
+# step below used to crash after training had already finished, losing the
+# entire run since nothing had been persisted yet. Now a report-only failure
+# can't cost you a re-run.
+joblib.dump(le, os.path.join(ARTIFACTS_DIR, "daisee_lstm_label_encoder.pkl"))
+torch.save(best_state, os.path.join(ARTIFACTS_DIR, "daisee_lstm_model.pt"))
+print(f"\nSaved label encoder and best model state to {ARTIFACTS_DIR}")
+
 # Evaluate on Test using the best checkpoint, not the final epoch.
 model.eval()
 with torch.no_grad():
@@ -116,7 +124,4 @@ with torch.no_grad():
     test_acc = (test_pred == y_test_t).float().mean()
     print(f"\nTest Accuracy: {test_acc:.4f}")
     print(classification_report(y_test_enc, test_pred.numpy(), target_names=le.classes_))
-
-joblib.dump(le, os.path.join(ARTIFACTS_DIR, "daisee_lstm_label_encoder.pkl"))
-torch.save(best_state, os.path.join(ARTIFACTS_DIR, "daisee_lstm_model.pt"))
 print(f"\nSaved label encoder and best model state to {ARTIFACTS_DIR}")

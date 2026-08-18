@@ -36,10 +36,27 @@ def load_split_sequences(split, max_len=None):
     re-deriving it from the labels CSV, so this stays apples-to-apples with
     the MLP/SVM results.
     """
+    # Read the full row (no usecols) then select columns afterward, matching
+    # train_daisee.py's approach -- combining usecols with on_bad_lines
+    # appears to let a malformed row's field-count check behave differently,
+    # letting a garbage/shifted value slip into Emotion instead of getting
+    # cleanly dropped (surfaced as a 5th, bogus class breaking
+    # classification_report, which expects exactly the 4 real DAiSEE labels).
     features_path = os.path.join(OUTPUT_DIR, f"{split}_features.csv")
-    clip_labels = pd.read_csv(
-        features_path, on_bad_lines="warn", usecols=["ClipID", "Emotion"]
-    )
+    full_df = pd.read_csv(features_path, on_bad_lines="warn")
+    clip_labels = full_df[["ClipID", "Emotion"]]
+
+    # Defensive belt-and-suspenders check: only the four real DAiSEE labels
+    # should ever appear here (get_dominant_emotion() in extract_daisee.py
+    # only ever writes one of these four exact strings). Anything else means
+    # a corrupted/misaligned row got this far -- drop it rather than let a
+    # bogus label quietly become a 5th class.
+    VALID_EMOTIONS = {"Boredom", "Engagement", "Confusion", "Frustration"}
+    bad_rows = ~clip_labels["Emotion"].isin(VALID_EMOTIONS)
+    if bad_rows.any():
+        print(f"{split}: dropping {bad_rows.sum()} row(s) with an unrecognized "
+              f"Emotion value: {clip_labels.loc[bad_rows, 'Emotion'].unique().tolist()}")
+        clip_labels = clip_labels[~bad_rows]
 
     sequences = []
     labels = []
