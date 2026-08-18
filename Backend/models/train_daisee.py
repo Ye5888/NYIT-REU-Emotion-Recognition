@@ -15,7 +15,13 @@ import joblib
 # files extract_daisee.py already saved. Run extract_daisee.py once; run
 # this as many times as you want after that.
 OUTPUT_DIR = os.getenv("DAISEE_OUTPUT_DIR", "/home/yesongquing/daisee_output")
-ARTIFACTS_DIR = os.getenv("DAISEE_ARTIFACTS_DIR", OUTPUT_DIR)
+# Defaults to a folder inside the repo now, not OUTPUT_DIR (which is
+# .gitignore'd, same as the DAiSEE dataset itself) -- so a normal run's
+# artifacts land somewhere git actually tracks, without needing a manual
+# copy step. .gitignore has a matching exception for *.pkl files under here.
+ARTIFACTS_DIR = os.getenv(
+    "DAISEE_ARTIFACTS_DIR", os.path.join(os.path.dirname(__file__), "artifacts")
+)
 os.makedirs(ARTIFACTS_DIR, exist_ok=True)
 
 SEED = 42

@@ -3,11 +3,18 @@ from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 from sklearn.metrics import classification_report, accuracy_score, f1_score
+import joblib
 import os
 import pandas as pd
 
 OUTPUT_DIR = os.getenv("DAISEE_OUTPUT_DIR", "/home/yesongquing/daisee_output")
-ARTIFACTS_DIR = os.getenv("DAISEE_ARTIFACTS_DIR", OUTPUT_DIR) # Where we will output our joblib models
+# Defaults to a folder inside the repo now, not OUTPUT_DIR (which is
+# .gitignore'd, same as the DAiSEE dataset itself) -- so a normal run's
+# artifacts land somewhere git actually tracks, without needing a manual
+# copy step. .gitignore has a matching exception for *.pkl files under here.
+ARTIFACTS_DIR = os.getenv(
+    "DAISEE_ARTIFACTS_DIR", os.path.join(os.path.dirname(__file__), "artifacts")
+)
 os.makedirs(ARTIFACTS_DIR, exist_ok=True)
 
 
@@ -58,3 +65,9 @@ y_pred = best_model.predict(X_test_scaled)
 
 print(accuracy_score(y_test, y_pred))
 print(classification_report(y_test, y_pred))
+
+# Never saved before -- best_model/scaler only ever existed in memory, so
+# nothing survived past the run itself.
+joblib.dump(scaler, os.path.join(ARTIFACTS_DIR, "daisee_svm_scaler.pkl"))
+joblib.dump(best_model, os.path.join(ARTIFACTS_DIR, "daisee_svm_model.pkl"))
+print(f"\nSaved scaler and best model (C={best_C}) to {ARTIFACTS_DIR}")
