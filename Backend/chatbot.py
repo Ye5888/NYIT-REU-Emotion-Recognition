@@ -5,7 +5,11 @@ from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv()
 
-MODEL = "llama-3.3-70b-versatile"
+# llama-3.3-70b-versatile started 404ing ("does not exist or you do not
+# have access to it") -- Groq's available models can change over time.
+# Confirmed openai/gpt-oss-120b is currently live and accessible via the
+# Groq Playground before switching to it.
+MODEL = "openai/gpt-oss-120b"
 
 # Groq speaks the OpenAI Chat Completions API, so the official OpenAI SDK
 # works as-is once pointed at Groq's base URL with a Groq key.
