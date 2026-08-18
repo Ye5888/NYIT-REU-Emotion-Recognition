@@ -1,5 +1,4 @@
 import os
-import sys
 import subprocess
 import numpy as np
 import pandas as pd
@@ -12,11 +11,12 @@ import torch.nn as nn
 # -- that's exactly how a live feature vector can quietly drift out of sync
 # with what the model was actually trained on. extract_daisee.py's main
 # extraction loop is guarded behind `if __name__ == "__main__":` so this
-# import doesn't trigger it.
-MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
-sys.path.insert(0, MODELS_DIR)
-from extract_daisee import extract_features  # noqa: E402
+# import doesn't trigger it. No sys.path manipulation needed -- Backend/ is
+# already on the path (same reason `from predict import predict_emotion`
+# works in app.py), so models/ is importable as a plain namespace package.
+from models.extract_daisee import extract_features
 
+MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
 ARTIFACTS_DIR = os.path.join(MODELS_DIR, "artifacts")
 
 scaler = joblib.load(os.path.join(ARTIFACTS_DIR, "daisee_scaler.pkl"))
