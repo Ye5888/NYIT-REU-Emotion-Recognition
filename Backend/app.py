@@ -712,6 +712,10 @@ def start_learning():
     try:
         flashcard = generate_flashcard(topic)
     except Exception as e:
+        # Was silently discarding the real exception -- undebuggable from
+        # the logs, since nothing but the generic client-facing message
+        # ever got recorded anywhere.
+        print(f"/learning/start: generate_flashcard failed ({type(e).__name__}: {e})")
         return jsonify({"error": "Could not generate a flashcard right now. Please try again shortly."}), 502
 
     # Correctness was previously taken from correct_count/total_count in the
@@ -767,6 +771,7 @@ def submit_learning_answer():
     try:
         flashcard = generate_flashcard(topic, emotion)
     except Exception as e:
+        print(f"/learning/answer: generate_flashcard failed ({type(e).__name__}: {e})")
         return jsonify({"error": "Could not generate the next flashcard right now. Please try again shortly."}), 502
 
     return jsonify({"status": "continue", "flashcard": flashcard}), 200
