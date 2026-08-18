@@ -1,32 +1,72 @@
-import joblib
-import pandas as pd
-import numpy as np
-from scipy.stats import linregress
-import opensmile
-import subprocess
 import os
+import subprocess
+import numpy as np
+import pandas as pd
+import joblib
+import torch
+import torch.nn as nn
 
-models_dir = os.path.join(os.path.dirname(__file__), "models")
+# Reusing extract_daisee.py's actual extract_features() rather than hand-
+# rolling a second implementation here, the way the old CREMA-D version did
+# -- that's exactly how a live feature vector can quietly drift out of sync
+# with what the model was actually trained on. extract_daisee.py's main
+# extraction loop is guarded behind `if __name__ == "__main__":` so this
+# import doesn't trigger it. No sys.path manipulation needed -- Backend/ is
+# already on the path (same reason `from predict import predict_emotion`
+# works in app.py), so models/ is importable as a plain namespace package.
+from models.extract_daisee import extract_features
 
-dependent_model = joblib.load(os.path.join(models_dir, "dependent_model.pkl"))
-dependent_scaler = joblib.load(os.path.join(models_dir, "dependent_scaler.pkl"))
-independent_model = joblib.load(os.path.join(models_dir, "independent_model.pkl"))
-independent_scaler = joblib.load(os.path.join(models_dir, "independent_scaler.pkl"))
+MODELS_DIR = os.path.join(os.path.dirname(__file__), "models")
+ARTIFACTS_DIR = os.path.join(MODELS_DIR, "artifacts")
 
-smile = opensmile.Smile(
-    feature_set=opensmile.FeatureSet.emobase,
-    feature_level=opensmile.FeatureLevel.Functionals,
-)
+scaler = joblib.load(os.path.join(ARTIFACTS_DIR, "daisee_scaler.pkl"))
+label_encoder = joblib.load(os.path.join(ARTIFACTS_DIR, "daisee_label_encoder.pkl"))
 
 
-def predict_emotion(video_path, audio_path):
-    feature_vector_scaled = construct_feature_vector(video_path, audio_path)
-    prediction = dependent_model.predict(feature_vector_scaled)[0]
+# Same architecture as train_daisee.py's EmotionMLP -- has to match exactly,
+# since we're loading a state dict (learned weights) into this structure,
+# not a full serialized model object.
+class EmotionMLP(nn.Module):
+    def __init__(self, input_size, num_classes):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_size, 512),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, num_classes)
+        )
 
-    return prediction
+    def forward(self, x):
+        return self.net(x)
 
-def construct_feature_vector(video_path, audio_path):
+
+# scaler.mean_ has one entry per input feature, so its length is exactly the
+# input size the model was trained on -- avoids hardcoding 700 here.
+model = EmotionMLP(input_size=scaler.mean_.shape[0], num_classes=len(label_encoder.classes_))
+model.load_state_dict(torch.load(os.path.join(ARTIFACTS_DIR, "daisee_model.pt")))
+model.eval()
+
+
+def predict_emotion(video_path, audio_path=None):
+    """audio_path is accepted for backward compatibility with app.py's
+    /predict route, which still extracts it -- unused here. DAiSEE is
+    video-only, so the model was never trained on audio features.
+    """
+    feature_vector_scaled = construct_feature_vector(video_path)
+    with torch.no_grad():
+        logits = model(torch.FloatTensor(feature_vector_scaled))
+        pred_idx = logits.argmax(dim=1).item()
+    return label_encoder.inverse_transform([pred_idx])[0]
+
+
+def construct_feature_vector(video_path):
     csv_dir = os.path.join(os.path.dirname(__file__), "uploads/CSVs/")
+    os.makedirs(csv_dir, exist_ok=True)
     video_name = os.path.basename(video_path)
 
     run_openface(video_path, csv_dir)
@@ -36,84 +76,14 @@ def construct_feature_vector(video_path, audio_path):
     csv_path = os.path.join(csv_dir, csv_name)
 
     df = pd.read_csv(csv_path)
+    visual_features, au_cols = extract_features(df)
 
-    # Need to make the feature vector now
-    df.columns = df.columns.str.strip()
-    
-    
-    au_cols = [col for col in df.columns 
-           if col.startswith('AU') and (col.endswith('_r') or col.endswith('_c'))]
-
-    list_means = []                   
-    list_std = []
-    list_max = []
-    list_min = []
-    list_first_quartile = []
-    list_medians = []
-    list_third_quartile = []
-    list_argmin = []
-    list_argmax = []
-    list_range = []
-    list_lower_iqr = []
-    list_upper_iqr = []
-    list_iqr = []
-    list_kurtosis = []
-    list_slope = []
-    list_intercept = []
-    list_p_value = []
-    list_std_err = []
-    list_r_squared = []
-    list_skew = []                   
-
-    for col in au_cols:
-        list_means.append(df[col].mean())
-        list_std.append(df[col].std())
-        list_max.append(df[col].max())
-        list_min.append(df[col].min())
-        list_first_quartile.append(df[col].quantile(0.25))
-        list_medians.append(df[col].median())
-        list_third_quartile.append(df[col].quantile(0.75))
-        list_argmin.append(df[col].idxmin())
-        list_argmax.append(df[col].idxmax())
-        list_range.append(df[col].max() - df[col].min())
-        list_lower_iqr.append(df[col].quantile(0.5) - df[col].quantile(0.25))
-        list_upper_iqr.append(df[col].quantile(0.75) - df[col].quantile(0.5))
-        list_iqr.append(df[col].quantile(0.75) - df[col].quantile(0.25))
-        list_kurtosis.append(df[col].kurt())
-        slope, intercept, r_value, p_value, std_err = linregress(range(len(df)), df[col])
-        list_slope.append(slope)
-        list_intercept.append(intercept)
-        list_p_value.append(p_value)
-        list_std_err.append(std_err)
-        list_r_squared.append(r_value ** 2)
-        list_skew.append(df[col].skew())
-
-    
-    # audio_path is already the full path to the extracted .wav (computed by
-    # the caller) — it is a file, not a directory to join against.
-    audio_features = smile.process_file(audio_path).values.flatten().tolist()
-
-    # Total list
-    total_list = (list_means + list_std + list_max + list_min +
-              list_first_quartile + list_medians + list_third_quartile +
-              list_argmin + list_argmax + list_range +
-              list_lower_iqr + list_upper_iqr + list_iqr +
-              list_kurtosis + list_slope + list_intercept +
-              list_p_value + list_std_err + list_r_squared +
-              list_skew + audio_features)
-
-
-    feature_vector = np.array(total_list).reshape(1,-1)
-    feature_vector = np.nan_to_num(feature_vector)
-    feature_vector_scaled = dependent_scaler.transform(feature_vector)
+    feature_vector = np.array(visual_features, dtype=np.float64).reshape(1, -1)
+    feature_vector_scaled = scaler.transform(feature_vector)
     return feature_vector_scaled
 
 
-
 def run_openface(video_path, csv_output_dir):
-    # Was hardcoded to one machine's home directory, so nobody else could run
-    # this. Defaults to that same path (today's actual deployment) but is
-    # overridable per-environment.
     openface_bin = os.getenv("OPENFACE_BIN", "/home/yesongquing/OpenFace/build/bin/FeatureExtraction")
 
     subprocess.run([

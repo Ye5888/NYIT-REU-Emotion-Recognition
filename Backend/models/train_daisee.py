@@ -15,7 +15,13 @@ import joblib
 # files extract_daisee.py already saved. Run extract_daisee.py once; run
 # this as many times as you want after that.
 OUTPUT_DIR = os.getenv("DAISEE_OUTPUT_DIR", "/home/yesongquing/daisee_output")
-ARTIFACTS_DIR = os.getenv("DAISEE_ARTIFACTS_DIR", OUTPUT_DIR)
+# Defaults to a folder inside the repo now, not OUTPUT_DIR (which is
+# .gitignore'd, same as the DAiSEE dataset itself) -- so a normal run's
+# artifacts land somewhere git actually tracks, without needing a manual
+# copy step. .gitignore has a matching exception for *.pkl files under here.
+ARTIFACTS_DIR = os.getenv(
+    "DAISEE_ARTIFACTS_DIR", os.path.join(os.path.dirname(__file__), "artifacts")
+)
 os.makedirs(ARTIFACTS_DIR, exist_ok=True)
 
 SEED = 42
@@ -24,7 +30,15 @@ np.random.seed(SEED)
 
 def load_split(split):
     path = os.path.join(OUTPUT_DIR, f"{split}_features.csv")
-    df = pd.read_csv(path)
+    # A pre-fix version of extract_daisee.py could write a row with a
+    # different field count than the header, if a clip's OpenFace output had
+    # a different AU column set than whichever clip established the split's
+    # header -- caused pandas.errors.ParserError: "Expected 702 fields ...
+    # saw 1309" here. extract_daisee.py now rejects those rows going
+    # forward, but can't retroactively fix rows already written by an
+    # earlier run; on_bad_lines drops any surviving malformed row (and
+    # prints which one) instead of crashing the whole training run over it.
+    df = pd.read_csv(path, on_bad_lines='warn')
     # ClipID is now in the extracted CSVs (needed for extract_daisee.py's
     # resume support) -- an identifier, not a feature, so drop it alongside
     # Emotion rather than trying to cast a clip filename to float.

@@ -122,93 +122,117 @@ def build_column_names(au_cols):
     col_names.append('Emotion')
     return col_names
 
-# process each split
-for split in ['Train', 'Validation', 'Test']:
-    labels_file = os.path.join(LABELS_DIR, f"{split}Labels.csv")
-    labels_df = pd.read_csv(labels_file)
-    labels_df.columns = labels_df.columns.str.strip()
+if __name__ == "__main__":
+    # process each split
+    for split in ['Train', 'Validation', 'Test']:
+        labels_file = os.path.join(LABELS_DIR, f"{split}Labels.csv")
+        labels_df = pd.read_csv(labels_file)
+        labels_df.columns = labels_df.columns.str.strip()
 
-    dominant = labels_df.apply(get_dominant_emotion, axis=1, result_type='expand')
-    labels_df['Emotion'] = dominant[0]
-    labels_df['EmotionTied'] = dominant[1]
-    tie_count = int(labels_df['EmotionTied'].sum())
-    print(f"{split}: {tie_count}/{len(labels_df)} clips had a tied dominant label")
+        dominant = labels_df.apply(get_dominant_emotion, axis=1, result_type='expand')
+        labels_df['Emotion'] = dominant[0]
+        labels_df['EmotionTied'] = dominant[1]
+        tie_count = int(labels_df['EmotionTied'].sum())
+        print(f"{split}: {tie_count}/{len(labels_df)} clips had a tied dominant label")
 
-    labels_dict = dict(zip(labels_df['ClipID'], labels_df['Emotion']))
+        labels_dict = dict(zip(labels_df['ClipID'], labels_df['Emotion']))
 
-    csv_dir = os.path.join(OUTPUT_DIR, split, "csvs")
-    os.makedirs(csv_dir, exist_ok=True)
-    split_dir = os.path.join(DATASET_DIR, split)
-    out_path = os.path.join(OUTPUT_DIR, f"{split}_features.csv")
+        csv_dir = os.path.join(OUTPUT_DIR, split, "csvs")
+        os.makedirs(csv_dir, exist_ok=True)
+        split_dir = os.path.join(DATASET_DIR, split)
+        out_path = os.path.join(OUTPUT_DIR, f"{split}_features.csv")
 
-    # Resume support: a crash used to lose an entire split's work, because
-    # nothing was written to out_path until every clip in the split had
-    # finished -- the crash that prompted this rewrite lost hours of work
-    # for exactly that reason. Now every clip is appended and flushed
-    # immediately, and re-running after a crash picks up from whatever's
-    # already in {split}_features.csv instead of starting the split over.
-    already_done = set()
-    col_names = None
-    if os.path.exists(out_path):
-        with open(out_path, newline='') as f:
-            reader = csv.reader(f)
-            header = next(reader, None)
-            if header:
-                col_names = header
-                clip_idx = header.index('ClipID')
-                for row in reader:
-                    if row:
-                        already_done.add(row[clip_idx])
-        print(f"{split}: resuming, {len(already_done)} clips already recorded in {out_path}")
+        # Resume support: a crash used to lose an entire split's work, because
+        # nothing was written to out_path until every clip in the split had
+        # finished -- the crash that prompted this rewrite lost hours of work
+        # for exactly that reason. Now every clip is appended and flushed
+        # immediately, and re-running after a crash picks up from whatever's
+        # already in {split}_features.csv instead of starting the split over.
+        already_done = set()
+        col_names = None
+        # au_cols (and therefore the header) is only ever established from the
+        # first clip successfully processed in a split. Nothing previously
+        # checked that every later clip actually produced the same number of AU
+        # columns -- OpenFace can emit a different AU set for an odd clip across
+        # a ~9000-clip, multi-restart run, and that row would silently get
+        # written with a different field count than the header. That's exactly
+        # what caused pandas.errors.ParserError: "Expected 702 fields ... saw
+        # 1309" when train_daisee.py later tried to read the file. Tracking the
+        # expected feature-vector length lets every subsequent clip be checked
+        # before it's written, instead of after the fact.
+        expected_feature_len = None
+        if os.path.exists(out_path):
+            with open(out_path, newline='') as f:
+                reader = csv.reader(f)
+                header = next(reader, None)
+                if header:
+                    col_names = header
+                    expected_feature_len = len(header) - 2  # minus ClipID, Emotion
+                    clip_idx = header.index('ClipID')
+                    for row in reader:
+                        if row:
+                            already_done.add(row[clip_idx])
+            print(f"{split}: resuming, {len(already_done)} clips already recorded in {out_path}")
 
-    processed = 0
-    skipped = 0
+        processed = 0
+        skipped = 0
 
-    with open(out_path, 'a', newline='') as out_file:
-        writer = csv.writer(out_file)
+        with open(out_path, 'a', newline='') as out_file:
+            writer = csv.writer(out_file)
 
-        for subject in sorted(os.listdir(split_dir)):
-            subject_dir = os.path.join(split_dir, subject)
-            if not os.path.isdir(subject_dir):
-                continue
-            for clip_folder in sorted(os.listdir(subject_dir)):
-                clip_id = clip_folder + ".avi"
-                if clip_id not in labels_dict or clip_id in already_done:
+            for subject in sorted(os.listdir(split_dir)):
+                subject_dir = os.path.join(split_dir, subject)
+                if not os.path.isdir(subject_dir):
                     continue
+                for clip_folder in sorted(os.listdir(subject_dir)):
+                    clip_id = clip_folder + ".avi"
+                    if clip_id not in labels_dict or clip_id in already_done:
+                        continue
 
-                video_path = os.path.join(subject_dir, clip_folder, clip_id)
-                if not os.path.exists(video_path):
-                    continue
+                    video_path = os.path.join(subject_dir, clip_folder, clip_id)
+                    if not os.path.exists(video_path):
+                        continue
 
-                emotion = labels_dict[clip_id]
-                csv_path = os.path.join(csv_dir, clip_folder + ".csv")
+                    emotion = labels_dict[clip_id]
+                    csv_path = os.path.join(csv_dir, clip_folder + ".csv")
 
-                # Skip re-running OpenFace if this clip's output already
-                # exists from an earlier (possibly crashed) run -- that's
-                # the slow part, no need to redo it on a resume.
-                if not os.path.exists(csv_path):
-                    run_openface(video_path, csv_dir)
+                    # Skip re-running OpenFace if this clip's output already
+                    # exists from an earlier (possibly crashed) run -- that's
+                    # the slow part, no need to redo it on a resume.
+                    if not os.path.exists(csv_path):
+                        run_openface(video_path, csv_dir)
 
-                # A single bad clip (OpenFace produced an empty or malformed
-                # CSV -- no face detected, corrupted frame, etc.) used to
-                # crash the entire multi-hour run via an uncaught
-                # pandas.errors.EmptyDataError. Skip and log instead.
-                try:
-                    df = pd.read_csv(csv_path)
-                    visual_features, au_cols = extract_features(df)
-                    if any(pd.isna(v) for v in visual_features):
-                        raise ValueError("NaN in extracted features")
-                except Exception as e:
-                    skipped += 1
-                    print(f"{split}: skipping {clip_id} ({type(e).__name__}: {e})")
-                    continue
+                    # A single bad clip (OpenFace produced an empty or malformed
+                    # CSV -- no face detected, corrupted frame, etc.) used to
+                    # crash the entire multi-hour run via an uncaught
+                    # pandas.errors.EmptyDataError. Skip and log instead.
+                    try:
+                        df = pd.read_csv(csv_path)
+                        visual_features, au_cols = extract_features(df)
+                        if any(pd.isna(v) for v in visual_features):
+                            raise ValueError("NaN in extracted features")
+                        # Guard against a clip whose OpenFace output has a
+                        # different AU column count than whatever clip
+                        # established this split's header -- writing it anyway
+                        # would silently corrupt the CSV's column alignment.
+                        if expected_feature_len is not None and len(visual_features) != expected_feature_len:
+                            raise ValueError(
+                                f"feature count mismatch: expected {expected_feature_len}, "
+                                f"got {len(visual_features)} -- OpenFace likely produced a "
+                                f"different AU column set for this clip"
+                            )
+                    except Exception as e:
+                        skipped += 1
+                        print(f"{split}: skipping {clip_id} ({type(e).__name__}: {e})")
+                        continue
 
-                if col_names is None:
-                    col_names = build_column_names(au_cols)
-                    writer.writerow(col_names)
+                    if col_names is None:
+                        col_names = build_column_names(au_cols)
+                        writer.writerow(col_names)
+                        expected_feature_len = len(visual_features)
 
-                writer.writerow([clip_id] + visual_features + [emotion])
-                out_file.flush()
-                processed += 1
+                    writer.writerow([clip_id] + visual_features + [emotion])
+                    out_file.flush()
+                    processed += 1
 
-    print(f"{split}: {processed} clips newly processed, {skipped} skipped, saved to {out_path}")
+        print(f"{split}: {processed} clips newly processed, {skipped} skipped, saved to {out_path}")

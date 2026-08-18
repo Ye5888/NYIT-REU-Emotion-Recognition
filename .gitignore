@@ -15,6 +15,7 @@ venv/serviceAccountKey.json
 node_modules/
 Backend/uploads/
 *.pkl
+!Backend/models/artifacts/*.pkl
 .env
 Backend/serviceAccountKey.json
 Backend/.venv
