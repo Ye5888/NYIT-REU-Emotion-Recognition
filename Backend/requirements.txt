@@ -2,7 +2,6 @@ flask
 flask_cors
 firebase-admin
 jsonschema
-opensmile
 PyJWT
 openai
 python-dotenv
