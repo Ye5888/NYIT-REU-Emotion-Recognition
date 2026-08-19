@@ -9,9 +9,17 @@ The core idea: while a student is looking at a flashcard, their webcam records t
 - logged against the session, for later analysis, and
 - passed to an LLM-based tutor (via Groq), which adapts its explanation and the next flashcard's difficulty based on how the student seems to be doing.
 
-The system was originally built around CREMA-D (an acted, audio-visual emotion dataset) before switching to DAiSEE, which — being made of real students' webcam recordings during e-learning — is a much closer match for the four target states this project actually cares about. See [Section 4](#4-the-ml-pipeline) for what that migration involved and what was learned from it.
+The system was originally built around CREMA-D (an acted, audio-visual emotion dataset) before switching to DAiSEE, which — being made of real students' webcam recordings during e-learning — is a much closer match for the four target states this project actually cares about. See [Section 5](#5-the-ml-pipeline) for what that migration involved and what was learned from it.
 
-## 2. Architecture
+## 2. The Learning Experience & Experiment Design
+
+**The gamified part, concretely:** each round is a two-choice flashcard — a term with two subtly different definitions, one correct and one a plausible misconception, generated on the fly by the tutor LLM. The student picks A or B, gets immediate correct/wrong feedback, and a running accuracy score (`correctCount` / `totalCount`) is tracked for the whole session, reported back at the end. It's a lightweight quiz loop, not a game in the point-and-leaderboard sense — the "game" is closer to "keep answering, watch your accuracy, get an explanation when you're wrong."
+
+**The research idea underneath that loop:** DAiSEE's four categories weren't picked arbitrarily — they're specifically the states the dataset's own creators built it around measuring in an e-learning context, which is exactly this project's setting (as opposed to CREMA-D's generic acted emotions, built for a different kind of task). The underlying hypothesis being explored is whether detecting a student's real-time engagement/confusion/boredom/frustration from webcam video during a task can be used to adapt the tutoring response — simplify and add analogies if confused, ease off and encourage if frustrated, raise the challenge if bored, build on momentum if engaged (see `SYSTEM_INSTRUCTION` in `chatbot.py` for exactly how that's phrased to the model).
+
+**An open methodological question worth stating plainly, not glossing over:** right now the same emotion signal is both *logged as data* (for later analysis of what states show up when) and *used live* to change what the student sees next. Those are two different roles that can interfere with each other — if the tutor visibly reacts to a detected state, that reaction itself becomes part of what's shaping the student's *next* state, which muddies any attempt to cleanly measure how emotion relates to learning outcomes on its own. Whether and how to separate "record emotion" from "act on emotion" — e.g., running a measurement-only mode, or A/B'ing adaptive vs. non-adaptive tutoring — is an active discussion with the project's mentors, not yet a settled part of the design. The current build takes the simpler, both-at-once path described above.
+
+## 3. Architecture
 
 ```
 FrontendApp/          Expo / React Native app (web-first — uses browser MediaRecorder)
@@ -34,7 +42,7 @@ Backend/               Flask API
 2. `POST /predict` — video + whether the answer was correct. Backend runs OpenFace, builds a feature vector, runs it through the trained model, gets back one of the four emotion labels, logs it to Firestore, and (only on a wrong answer, to avoid a wasted LLM call) asks the chatbot for an explanation.
 3. `POST /learning/answer` — updates the session's running score in Firestore, then generates the next flashcard, with the detected emotion folded into the prompt.
 
-## 3. Setup / Running It
+## 4. Setup / Running It
 
 ### Backend
 
@@ -71,7 +79,7 @@ npx expo start
 ```
 Press `w` to open it in a browser — the camera-recording flow depends on the browser's `MediaRecorder` API, so this is a web-first app, not a native-first one.
 
-## 4. The ML Pipeline
+## 5. The ML Pipeline
 
 **Offline (run once, or whenever you want to retrain):**
 ```bash
